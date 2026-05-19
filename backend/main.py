@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
 import models
-from routes import logs, verify, merkle, dashboard
+from routes import logs, verify, merkle, dashboard, keys
 
 Base.metadata.create_all(bind=engine)
 
@@ -21,6 +21,7 @@ app.include_router(logs.router)
 app.include_router(verify.router)
 app.include_router(merkle.router)
 app.include_router(dashboard.router)
+app.include_router(keys.router)
 
 @app.get("/")
 def home():
