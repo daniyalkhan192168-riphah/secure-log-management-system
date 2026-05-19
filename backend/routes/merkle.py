@@ -5,11 +5,13 @@ from database import SessionLocal
 from models import Log, MerkleRoot
 from services.merkle_service import build_merkle_root
 from services.hash_service import generate_hash
+from services.key_manager import get_current_key_state
 
 router = APIRouter(
     prefix="/merkle",
     tags=["Merkle Tree"]
 )
+
 
 def get_db():
     db = SessionLocal()
@@ -32,11 +34,18 @@ def generate_merkle_root(batch_id: int, db: Session = Depends(get_db)):
     hashes = [log.current_hash for log in logs]
     root_hash = build_merkle_root(hashes)
 
+    key_state = get_current_key_state()
+    key_version = key_state["key_version"]
+    forward_secure_key_hash = key_state["current_key_hash"]
+
     existing_root = db.query(MerkleRoot).filter(MerkleRoot.batch_id == batch_id).first()
 
     if existing_root:
         existing_root.root_hash = root_hash
         existing_root.total_logs = len(logs)
+        existing_root.key_version = key_version
+        existing_root.forward_secure_key_hash = forward_secure_key_hash
+
         db.commit()
         db.refresh(existing_root)
 
@@ -44,13 +53,17 @@ def generate_merkle_root(batch_id: int, db: Session = Depends(get_db)):
             "status": "Updated",
             "batch_id": batch_id,
             "root_hash": root_hash,
-            "total_logs": len(logs)
+            "total_logs": len(logs),
+            "key_version": key_version,
+            "forward_secure_key_hash": forward_secure_key_hash
         }
 
     new_root = MerkleRoot(
         batch_id=batch_id,
         root_hash=root_hash,
-        total_logs=len(logs)
+        total_logs=len(logs),
+        key_version=key_version,
+        forward_secure_key_hash=forward_secure_key_hash
     )
 
     db.add(new_root)
@@ -61,15 +74,18 @@ def generate_merkle_root(batch_id: int, db: Session = Depends(get_db)):
         "status": "Generated",
         "batch_id": batch_id,
         "root_hash": root_hash,
-        "total_logs": len(logs)
+        "total_logs": len(logs),
+        "key_version": key_version,
+        "forward_secure_key_hash": forward_secure_key_hash
     }
 
 
 @router.get("/roots")
 def get_merkle_roots(db: Session = Depends(get_db)):
     roots = db.query(MerkleRoot).order_by(MerkleRoot.id.asc()).all()
-
     return roots
+
+
 @router.get("/verify/{batch_id}")
 def verify_merkle_root(batch_id: int, db: Session = Depends(get_db)):
     stored_root = db.query(MerkleRoot).filter(MerkleRoot.batch_id == batch_id).first()
@@ -110,7 +126,9 @@ def verify_merkle_root(batch_id: int, db: Session = Depends(get_db)):
             "batch_id": batch_id,
             "reason": "Merkle root mismatch",
             "stored_root": stored_root.root_hash,
-            "recalculated_root": recalculated_root
+            "recalculated_root": recalculated_root,
+            "key_version": stored_root.key_version,
+            "forward_secure_key_hash": stored_root.forward_secure_key_hash
         }
 
     return {
@@ -118,5 +136,7 @@ def verify_merkle_root(batch_id: int, db: Session = Depends(get_db)):
         "batch_id": batch_id,
         "message": "Merkle Root verified successfully. No tampering detected.",
         "root_hash": stored_root.root_hash,
-        "total_logs_verified": len(logs)
+        "total_logs_verified": len(logs),
+        "key_version": stored_root.key_version,
+        "forward_secure_key_hash": stored_root.forward_secure_key_hash
     }

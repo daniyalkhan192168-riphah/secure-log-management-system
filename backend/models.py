@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime
 from datetime import datetime
 from database import Base
 
+
 class Log(Base):
     __tablename__ = "logs"
 
@@ -39,4 +40,8 @@ class MerkleRoot(Base):
     batch_id = Column(Integer)
     root_hash = Column(Text)
     total_logs = Column(Integer)
+
+    key_version = Column(Integer)
+    forward_secure_key_hash = Column(Text)
+
     created_at = Column(DateTime, default=datetime.utcnow)
