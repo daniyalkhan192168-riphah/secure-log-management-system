@@ -1,0 +1,1200 @@
+.app {
+  display: flex;
+  min-height: 100vh;
+  background: #08111f;
+  color: #e5eefc;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 270px;
+  min-width: 270px;
+  background: #0b1424;
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 34px;
+}
+
+.brandIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.brand h2 {
+  margin: 0;
+  font-size: 24px;
+  color: white;
+}
+
+.brand p {
+  margin: 4px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #dbeafe;
+  font-weight: 700;
+}
+
+.menu a.active {
+  background: rgba(37, 99, 235, 0.22);
+  border: 1px solid rgba(37, 99, 235, 0.45);
+}
+
+.integrityBox {
+  margin-top: 28px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+}
+
+.integrityBox p {
+  margin: 0 0 12px;
+  color: #94a3b8;
+}
+
+.integrity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.valid {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+}
+
+.tampered {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+/* Main */
+.main {
+  flex: 1;
+    min-width: 0;
+  overflow-x: hidden;
+  padding: 30px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.22), transparent 28%),
+    linear-gradient(180deg, #0e1b30, #08111f);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.label {
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.8px;
+}
+
+.header h1 {
+  margin: 8px 0 8px;
+  font-size: 34px;
+  color: white;
+}
+
+.header p {
+  margin: 0;
+  color: #9fb3cc;
+  max-width: 780px;
+}
+
+.refreshBtn {
+  height: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #12213a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #dbeafe;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* Stats */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.statCard {
+  background: #101c31;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.statCard p {
+  margin: 0;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.statCard h2 {
+  margin: 12px 0 0;
+  font-size: 32px;
+  color: white;
+}
+
+.greenText {
+  color: #22c55e !important;
+  font-size: 26px !important;
+}
+
+.redText {
+  color: #ef4444 !important;
+  font-size: 26px !important;
+}
+
+/* Panels */
+.gridTwo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.panel {
+  background: #101c31;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 22px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.panelHeader h3 {
+  margin: 0;
+  color: white;
+  font-size: 22px;
+}
+
+.panelHeader span {
+  color: #7dd3fc;
+  font-size: 13px;
+}
+
+/* Form */
+.logForm {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field input {
+  background: #081426;
+  color: white;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 13px 14px;
+  outline: none;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.primaryBtn,
+.actions button {
+  border: none;
+  border-radius: 12px;
+  padding: 13px 15px;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.primaryBtn {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.actions .danger {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+}
+
+/* Result */
+pre {
+  margin: 0;
+  background: #07111f;
+  color: #dbeafe;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 150px;
+  overflow-x: auto;
+}
+
+.hashBox {
+  background: #07111f;
+  color: #67e8f9;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 150px;
+  word-break: break-all;
+  font-family: monospace;
+  line-height: 1.6;
+}
+
+/* Table */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  text-align: left;
+}
+
+th {
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+td {
+  color: #dbeafe;
+  font-size: 14px;
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hash {
+  color: #67e8f9;
+  font-family: monospace;
+}
+
+/* Responsive */
+@media (max-width: 1150px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .gridTwo {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 850px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .logForm {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+}
+.statCard,
+.panel {
+  min-width: 0;
+}
+
+.actions button {
+  white-space: normal;
+}
+
+@media (max-width: 1350px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gridTwo {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===== Premium Cybersecurity UI Upgrade ===== */
+
+.app {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(6, 182, 212, 0.16), transparent 28%),
+    radial-gradient(circle at 90% 5%, rgba(37, 99, 235, 0.18), transparent 30%),
+    #06101f;
+  position: relative;
+}
+
+.app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.12) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(8, 17, 31, 0.98), rgba(12, 25, 45, 0.98)),
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 45%);
+  box-shadow: 14px 0 40px rgba(0, 0, 0, 0.28);
+}
+
+.brandIcon {
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.35),
+    0 0 30px rgba(14, 165, 233, 0.45);
+}
+
+.menu a {
+  position: relative;
+  overflow: hidden;
+  transition: 0.25s ease;
+}
+
+.menu a::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20%;
+  width: 3px;
+  height: 60%;
+  border-radius: 99px;
+  background: transparent;
+}
+
+.menu a.active::before,
+.menu a:hover::before {
+  background: #38bdf8;
+}
+
+.menu a:hover {
+  background: rgba(37, 99, 235, 0.18);
+  transform: translateX(3px);
+}
+
+.integrityBox {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.72)),
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 35%);
+  box-shadow: inset 0 0 30px rgba(14, 165, 233, 0.08);
+}
+
+.main {
+  background:
+    radial-gradient(circle at 78% 0%, rgba(37, 99, 235, 0.26), transparent 30%),
+    radial-gradient(circle at 20% 25%, rgba(6, 182, 212, 0.08), transparent 25%),
+    linear-gradient(180deg, #0c1729, #07111f);
+}
+
+.header {
+  background:
+    linear-gradient(135deg, rgba(16, 28, 49, 0.96), rgba(8, 20, 38, 0.82)),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 35%);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  padding: 26px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+}
+
+.header h1 {
+  letter-spacing: -0.6px;
+}
+
+.label {
+  color: #22d3ee;
+  text-shadow: 0 0 16px rgba(34, 211, 238, 0.35);
+}
+
+.refreshBtn {
+  background: linear-gradient(135deg, #172554, #0f172a);
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.16);
+}
+
+.statCard {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(16, 28, 49, 0.98), rgba(8, 20, 38, 0.96));
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.statCard::after {
+  content: "";
+  position: absolute;
+  right: -35px;
+  top: -35px;
+  width: 110px;
+  height: 110px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.18), transparent 65%);
+}
+
+.statCard svg {
+  color: #67e8f9;
+  filter: drop-shadow(0 0 8px rgba(103, 232, 249, 0.35));
+}
+
+.statCard:hover,
+.panel:hover {
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow:
+    0 22px 55px rgba(0, 0, 0, 0.32),
+    0 0 24px rgba(14, 165, 233, 0.08);
+}
+
+.panel {
+  background:
+    linear-gradient(180deg, rgba(16, 28, 49, 0.96), rgba(8, 20, 38, 0.96));
+  border: 1px solid rgba(125, 211, 252, 0.13);
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.panelHeader {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.panelHeader h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panelHeader h3::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.9);
+}
+
+.panelHeader span {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  padding: 7px 10px;
+  border-radius: 999px;
+}
+
+.field input {
+  background: rgba(7, 17, 31, 0.95);
+  border-color: rgba(125, 211, 252, 0.14);
+  transition: 0.2s ease;
+}
+
+.field input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.primaryBtn,
+.actions button {
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.22);
+  transition: 0.25s ease;
+}
+
+.primaryBtn:hover,
+.actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px rgba(37, 99, 235, 0.32);
+}
+
+.actions .danger {
+  background: linear-gradient(135deg, #dc2626, #f97316);
+  box-shadow: 0 12px 30px rgba(239, 68, 68, 0.22);
+}
+
+pre,
+.hashBox {
+  background:
+    linear-gradient(180deg, rgba(3, 10, 22, 0.98), rgba(7, 17, 31, 0.98));
+  border-color: rgba(56, 189, 248, 0.16);
+  box-shadow: inset 0 0 24px rgba(14, 165, 233, 0.06);
+}
+
+.hashBox {
+  color: #7dd3fc;
+}
+
+table {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+th {
+  background: rgba(14, 165, 233, 0.08);
+  color: #bfdbfe;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+td {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+tr:hover td {
+  background: rgba(14, 165, 233, 0.055);
+}
+
+.hash {
+  color: #67e8f9;
+  text-shadow: 0 0 12px rgba(103, 232, 249, 0.22);
+}
+
+.redText {
+  text-shadow: 0 0 14px rgba(239, 68, 68, 0.28);
+}
+
+.greenText {
+  text-shadow: 0 0 14px rgba(34, 197, 94, 0.28);
+}
+/* ===== Final Dashboard Polish ===== */
+
+.main {
+  padding: 34px;
+}
+
+.header {
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+.header h1 {
+  font-size: 38px;
+  line-height: 1.1;
+}
+
+.header p {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.stats {
+  gap: 20px;
+}
+
+.statCard {
+  min-height: 150px;
+  padding: 24px;
+}
+
+.statCard p {
+  font-size: 15px;
+}
+
+.statCard h2 {
+  font-size: 38px;
+}
+
+.gridTwo {
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.panel {
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.panelHeader h3 {
+  font-size: 24px;
+}
+
+.logForm {
+  gap: 16px;
+}
+
+.field label {
+  margin-left: 2px;
+}
+
+.field input {
+  height: 52px;
+  font-size: 15px;
+}
+
+.primaryBtn,
+.actions button {
+  min-height: 52px;
+  font-size: 15px;
+  border-radius: 14px;
+}
+
+.actions {
+  gap: 14px;
+}
+
+.integrityBox {
+  margin-top: 36px;
+}
+
+.menu a {
+  min-height: 56px;
+  font-size: 16px;
+}
+
+.brand {
+  margin-bottom: 42px;
+}
+
+.brand h2 {
+  font-size: 27px;
+}
+
+.brand p {
+  font-size: 14px;
+}
+
+pre,
+.hashBox {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.tableWrapper {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+table {
+  min-width: 1050px;
+}
+
+th {
+  padding: 16px 14px;
+}
+
+td {
+  padding: 16px 14px;
+}
+
+.source {
+  font-weight: 700;
+}
+
+/* Better scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #07111f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
+/* Subtle top cyber line */
+.header::after {
+  content: "";
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.45), transparent);
+}
+
+.header {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Make layout breathe on laptop screens */
+@media (max-width: 1450px) {
+  .header h1 {
+    font-size: 34px;
+  }
+
+  .statCard h2 {
+    font-size: 34px;
+  }
+
+  .main {
+    padding: 26px;
+  }
+}
+/* ===== Extra Cyber Design Layer - Balanced Premium Look ===== */
+
+/* Cyber background glow */
+.main::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 520px;
+  height: 320px;
+  pointer-events: none;
+  opacity: 0.28;
+  background:
+    radial-gradient(circle at 70% 20%, rgba(34, 211, 238, 0.35), transparent 12%),
+    radial-gradient(circle at 35% 45%, rgba(37, 99, 235, 0.25), transparent 18%),
+    linear-gradient(135deg, transparent 0%, rgba(56, 189, 248, 0.12) 50%, transparent 100%);
+  filter: blur(2px);
+}
+
+/* Subtle dotted cyber pattern */
+.main::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  background-image: radial-gradient(rgba(125, 211, 252, 0.7) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Header premium cyber panel */
+.header {
+  background:
+    linear-gradient(120deg, rgba(16, 28, 49, 0.96), rgba(8, 20, 38, 0.92)),
+    radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.16), transparent 28%);
+}
+
+.header::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  right: 160px;
+  width: 180px;
+  height: 70px;
+  opacity: 0.32;
+  background:
+    linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.45), transparent),
+    repeating-linear-gradient(
+      90deg,
+      rgba(56, 189, 248, 0.15) 0,
+      rgba(56, 189, 248, 0.15) 2px,
+      transparent 2px,
+      transparent 14px
+    );
+  border-radius: 18px;
+  transform: skewX(-12deg);
+}
+
+/* Sidebar logo pulse */
+.brandIcon {
+  position: relative;
+}
+
+.brandIcon::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 22px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  opacity: 0.75;
+}
+
+/* Better nav hover */
+.menu a {
+  border: 1px solid rgba(148, 163, 184, 0.07);
+}
+
+.menu a.active {
+  box-shadow:
+    inset 0 0 18px rgba(37, 99, 235, 0.18),
+    0 0 18px rgba(37, 99, 235, 0.12);
+}
+
+.menu a svg {
+  color: #7dd3fc;
+}
+
+/* Cards top accent line */
+.statCard {
+  position: relative;
+}
+
+.statCard::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+  opacity: 0.65;
+}
+
+.statCard:nth-child(3)::before {
+  background: linear-gradient(90deg, transparent, #f87171, transparent);
+}
+
+/* Card icon capsule */
+.statCard > svg {
+  padding: 9px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+}
+
+/* Panels left glow line */
+.panel {
+  position: relative;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22px;
+  bottom: 22px;
+  width: 3px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, #38bdf8, transparent);
+  opacity: 0.5;
+}
+
+/* Inputs look more technical */
+.field input {
+  box-shadow: inset 0 0 18px rgba(2, 6, 23, 0.45);
+}
+
+.field input:hover {
+  border-color: rgba(125, 211, 252, 0.35);
+}
+
+/* Buttons more premium */
+.primaryBtn,
+.actions button {
+  position: relative;
+  overflow: hidden;
+}
+
+.primaryBtn::after,
+.actions button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: skewX(-20deg);
+  transition: 0.45s ease;
+}
+
+.primaryBtn:hover::after,
+.actions button:hover::after {
+  left: 120%;
+}
+
+/* Latest result and hash blocks */
+pre,
+.hashBox {
+  border-left: 3px solid rgba(56, 189, 248, 0.65);
+}
+
+/* Table polish */
+tbody tr {
+  transition: 0.2s ease;
+}
+
+tbody tr:hover {
+  transform: scale(1.003);
+}
+
+/* Status pill stronger */
+.integrity.valid {
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.16);
+}
+
+.integrity.tampered {
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.18);
+}
+/* ===== Subtle Cyber Background Upgrade ===== */
+
+.main {
+  position: relative;
+  isolation: isolate;
+}
+
+.main::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 270px;
+  right: 0;
+  height: 340px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.22;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(34, 211, 238, 0.42), transparent 9%),
+    radial-gradient(circle at 63% 28%, rgba(59, 130, 246, 0.32), transparent 10%),
+    radial-gradient(circle at 88% 40%, rgba(14, 165, 233, 0.28), transparent 10%),
+    linear-gradient(120deg, transparent 20%, rgba(56, 189, 248, 0.08), transparent 70%);
+  filter: blur(1px);
+}
+
+.main::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 270px;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.11;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.22) 1px, transparent 1px),
+    radial-gradient(circle, rgba(125, 211, 252, 0.75) 1px, transparent 1.5px);
+  background-size:
+    44px 44px,
+    44px 44px,
+    26px 26px;
+}
+
+.header,
+.stats,
+.gridTwo,
+.panel {
+  position: relative;
+  z-index: 1;
+}
+
+.header {
+  background:
+    linear-gradient(120deg, rgba(16, 28, 49, 0.96), rgba(8, 20, 38, 0.9)),
+    radial-gradient(circle at 82% 18%, rgba(56, 189, 248, 0.18), transparent 30%);
+}
+
+.header::before {
+  content: "";
+  position: absolute;
+  right: 28px;
+  top: 22px;
+  width: 310px;
+  height: 120px;
+  opacity: 0.18;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 60%, #38bdf8 1.5px, transparent 2px),
+    radial-gradient(circle at 35% 35%, #60a5fa 1.5px, transparent 2px),
+    radial-gradient(circle at 55% 55%, #22d3ee 1.5px, transparent 2px),
+    radial-gradient(circle at 75% 30%, #38bdf8 1.5px, transparent 2px),
+    linear-gradient(25deg, transparent 45%, rgba(56, 189, 248, 0.5) 46%, transparent 48%),
+    linear-gradient(155deg, transparent 45%, rgba(59, 130, 246, 0.45) 46%, transparent 48%);
+  border-radius: 18px;
+}
+
+.header::after {
+  content: "";
+  position: absolute;
+  right: 40px;
+  bottom: 18px;
+  width: 260px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.7), transparent);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.5);
+}
+/* ===== Final Table + Layout Cleanup ===== */
+
+.tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  min-width: 1150px;
+}
+
+td:nth-child(6) {
+  max-width: 260px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+td:nth-child(7),
+td:nth-child(8) {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+th,
+td {
+  vertical-align: middle;
+}
+
+tbody tr {
+  min-height: 70px;
+}
+
+.panel {
+  margin-bottom: 22px;
+}
+
+.statCard {
+  transition: 0.25s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-3px);
+}
+
+.header {
+  min-height: 165px;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: relative;
+    height: auto;
+  }
+}
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #dbeafe;
+  font-weight: 700;
+  border: 1px solid rgba(148, 163, 184, 0.07);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-size: 16px;
+  transition: 0.25s ease;
+}
+
+.menu button.active {
+  background: rgba(37, 99, 235, 0.22);
+  border: 1px solid rgba(37, 99, 235, 0.45);
+}
+
+.menu button:hover {
+  background: rgba(37, 99, 235, 0.18);
+  transform: translateX(3px);
+}
+
+.menu button svg {
+  color: #7dd3fc;
+}
+.clickableCard {
+  cursor: pointer;
+}
+
+.clickableCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.refreshBtn,
+button {
+  position: relative;
+  z-index: 10;
+}
