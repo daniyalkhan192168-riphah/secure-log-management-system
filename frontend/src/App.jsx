@@ -12,6 +12,8 @@ import {
   Plus,
   Server,
   GitBranch,
+  KeyRound,
+  Copy,
 } from "lucide-react";
 import "./App.css";
 
@@ -21,6 +23,8 @@ function App() {
   const [stats, setStats] = useState(null);
   const [logs, setLogs] = useState([]);
   const [result, setResult] = useState(null);
+  const [keyInfo, setKeyInfo] = useState(null);
+  const [copied, setCopied] = useState("");
 
   const [form, setForm] = useState({
     source: "Server-01",
@@ -37,13 +41,45 @@ function App() {
     });
   };
 
+  const shortenHash = (hash, start = 12, end = 8) => {
+    if (!hash) return "-";
+    if (hash.length <= start + end) return hash;
+    return `${hash.slice(0, start)}...${hash.slice(-end)}`;
+  };
+
+  const cleanSourceName = (source) => {
+    if (!source) return "-";
+
+    return source
+      .replace("Ubuntu-Ubuntu-SecureLog-Server1", "Ubuntu Server")
+      .replace("Ubuntu-SecureLog-Server1", "Ubuntu Server")
+      .replace("Ubuntu-", "Ubuntu ");
+  };
+
+  const copyToClipboard = async (value, label) => {
+    if (!value) return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+
+      setTimeout(() => {
+        setCopied("");
+      }, 1400);
+    } catch (error) {
+      setCopied("");
+    }
+  };
+
   const refreshData = async (showMessage = true) => {
     try {
       const statsRes = await axios.get(`${API_URL}/dashboard/stats`);
       const logsRes = await axios.get(`${API_URL}/logs/`);
+      const keyRes = await axios.get(`${API_URL}/keys/current`);
 
       setStats(statsRes.data);
       setLogs(logsRes.data);
+      setKeyInfo(keyRes.data);
 
       if (showMessage) {
         setResult({
@@ -121,6 +157,19 @@ function App() {
     }
   };
 
+  const evolveKey = async () => {
+    try {
+      const res = await axios.post(`${API_URL}/keys/evolve`);
+      setResult(res.data);
+      await refreshData(false);
+    } catch (error) {
+      setResult({
+        status: "Error",
+        message: "Failed to evolve forward-secure key.",
+      });
+    }
+  };
+
   const simulateTampering = async () => {
     const logId = prompt("Enter Log ID to tamper:", "1");
     if (!logId) return;
@@ -138,6 +187,13 @@ function App() {
   };
 
   const isValid = stats?.integrity_status === "Valid";
+  const latestKeyHash =
+    result?.forward_secure_key_hash ||
+    result?.current_key_hash ||
+    keyInfo?.current_key_hash;
+
+  const latestKeyVersion =
+    result?.key_version || keyInfo?.key_version || "-";
 
   return (
     <div className="app">
@@ -177,6 +233,11 @@ function App() {
             <GitBranch size={18} />
             Merkle Tree
           </button>
+
+          <button type="button" onClick={() => scrollToSection("key-section")}>
+            <KeyRound size={18} />
+            Forward Key
+          </button>
         </nav>
 
         <div className="integrityBox">
@@ -197,8 +258,8 @@ function App() {
             <h1>Secure Log Management System</h1>
 
             <p>
-              Tamper-evident log storage using SHA-256, Hash Chaining, and
-              Merkle Tree verification.
+              Tamper-evident log storage using SHA-256, Hash Chaining, Merkle
+              Tree verification, and Forward-Secure Key Evolution.
             </p>
           </div>
 
@@ -246,13 +307,13 @@ function App() {
 
           <div
             className="statCard clickableCard"
-            onClick={() => scrollToSection("logs")}
+            onClick={() => scrollToSection("key-section")}
           >
             <div>
-              <p>Latest Log ID</p>
-              <h2>{stats?.latest_log_id ?? "-"}</h2>
+              <p>Key Version</p>
+              <h2>{latestKeyVersion}</h2>
             </div>
-            <Fingerprint size={28} />
+            <KeyRound size={28} />
           </div>
         </section>
 
@@ -343,6 +404,11 @@ function App() {
                 Verify Merkle Root
               </button>
 
+              <button onClick={evolveKey}>
+                <KeyRound size={16} />
+                Evolve Forward Key
+              </button>
+
               <button className="danger" onClick={simulateTampering}>
                 <AlertTriangle size={16} />
                 Simulate Tampering
@@ -375,6 +441,66 @@ function App() {
           </div>
         </section>
 
+        <section className="gridTwo" id="key-section">
+          <div className="panel keyPanel">
+            <div className="panelHeader">
+              <h3>Forward-Secure Key State</h3>
+              <span>One-way key evolution</span>
+            </div>
+
+            <div className="keyGrid">
+              <div className="keyMetric">
+                <p>Current Key Version</p>
+                <h2>{latestKeyVersion}</h2>
+              </div>
+
+              <div className="keyMetric">
+                <p>Protection Mode</p>
+                <h2>Forward Secure</h2>
+              </div>
+            </div>
+
+            <div className="keyHashBlock">
+              <div>
+                <p>Current / Batch Key Hash</p>
+                <strong>{shortenHash(latestKeyHash, 18, 12)}</strong>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => copyToClipboard(latestKeyHash, "key")}
+              >
+                <Copy size={15} />
+                {copied === "key" ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+            <p className="keyNote">
+              Each evolved key is generated using a one-way SHA-256 function, so
+              older keys cannot be reconstructed from the current key hash.
+            </p>
+          </div>
+
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Cryptographic Flow</h3>
+              <span>Integrity pipeline</span>
+            </div>
+
+            <div className="flowSteps">
+              <div>Ubuntu Logs</div>
+              <span>→</span>
+              <div>SHA-256 Hash</div>
+              <span>→</span>
+              <div>Hash Chain</div>
+              <span>→</span>
+              <div>Merkle Root</div>
+              <span>→</span>
+              <div>Forward Key</div>
+            </div>
+          </div>
+        </section>
+
         <section className="panel" id="logs">
           <div className="panelHeader">
             <h3>Recent Security Logs</h3>
@@ -403,31 +529,59 @@ function App() {
                     <td>{log.id}</td>
 
                     <td>
-                      <span className="source">
+                      <span className="source sourcePill" title={log.source}>
                         <Server size={14} />
-                        {log.source}
+                        {cleanSourceName(log.source)}
                       </span>
                     </td>
 
-                    <td>{log.event_type}</td>
-                    <td>{log.username}</td>
-                    <td>{log.ip_address}</td>
-                    <td>{log.message}</td>
-
-                    <td className="hash">
-                      {log.previous_hash?.slice(0, 14)}...
+                    <td>
+                      <span className="eventPill">{log.event_type}</span>
                     </td>
 
-                    <td className="hash">
-                      {log.current_hash?.slice(0, 14)}...
+                    <td>{log.username || "-"}</td>
+                    <td>{log.ip_address || "-"}</td>
+
+                    <td className="messageCell" title={log.message}>
+                      {log.message}
                     </td>
 
-                    <td>{log.batch_id}</td>
+                    <td className="hash hashCell" title={log.previous_hash}>
+                      <span>{shortenHash(log.previous_hash)}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyToClipboard(log.previous_hash, `prev-${log.id}`)
+                        }
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </td>
+
+                    <td className="hash hashCell" title={log.current_hash}>
+                      <span>{shortenHash(log.current_hash)}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyToClipboard(log.current_hash, `curr-${log.id}`)
+                        }
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </td>
+
+                    <td>
+                      <span className="batchPill">{log.batch_id}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {copied && copied !== "key" && (
+            <div className="copyToast">Hash copied to clipboard</div>
+          )}
         </section>
       </main>
     </div>
