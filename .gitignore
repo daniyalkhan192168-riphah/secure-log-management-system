@@ -34,3 +34,5 @@ Thumbs.db
 *.vmdk
 *.ova
 *.ovf
+backend/key_state.json
+key_state.json
