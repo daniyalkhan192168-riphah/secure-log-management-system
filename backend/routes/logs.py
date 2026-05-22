@@ -58,7 +58,24 @@ def add_log(log: LogCreate, db: Session = Depends(get_db)):
 
     return new_log
 
-
-@router.get("/", response_model=list[LogResponse])
+@router.get("/")
 def get_logs(limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(Log).order_by(Log.id.desc()).limit(limit).all()
+    logs = db.query(Log).order_by(Log.id.desc()).limit(limit).all()
+
+    return [
+        {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            "source": log.source,
+            "event_type": log.event_type,
+            "username": log.username,
+            "ip_address": log.ip_address,
+            "message": log.message,
+            "previous_hash": log.previous_hash,
+            "current_hash": log.current_hash,
+            "batch_id": log.batch_id,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+
