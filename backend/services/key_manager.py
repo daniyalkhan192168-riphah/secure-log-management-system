@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -39,7 +40,12 @@ def evolve_key():
     state = initialize_key_state()
 
     old_key_hash = state["current_key_hash"]
-    new_key_hash = sha256(old_key_hash)
+
+    new_key_hash = hmac.new(
+        old_key_hash.encode("utf-8"),
+        b"forward-key-evolve",
+        hashlib.sha256
+    ).hexdigest()
 
     state["key_version"] += 1
     state["current_key_hash"] = new_key_hash

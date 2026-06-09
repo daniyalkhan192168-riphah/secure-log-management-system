@@ -75,6 +75,7 @@ def create_log(index):
         f"User={username} | "
         f"IP={ip_address}"
     )
+    
 
     return {
         "source": source,

@@ -19,7 +19,7 @@ def get_db():
 
 
 def check_hash_chain_status(db: Session):
-    logs = db.query(Log).order_by(Log.id.asc()).all()
+    logs = db.query(Log).order_by(Log.id.asc()).limit(1000).all()
 
     if not logs:
         return "No Logs"
@@ -30,7 +30,9 @@ def check_hash_chain_status(db: Session):
         if log.previous_hash != expected_previous_hash:
             return "Tampered"
 
+        # MUST match the exact dict used in logs.py during insertion
         log_data = {
+            "timestamp": log.timestamp.isoformat() if log.timestamp else "NOW",
             "source": log.source,
             "event_type": log.event_type,
             "username": log.username,
