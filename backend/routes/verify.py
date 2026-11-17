@@ -1,107 +1,40 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
-from models import Log
-from services.hash_service import generate_hash
+from deps import get_db
+from routes.auth import client_ip
+from security import require_admin, require_demo
+from services import ledger
+from services.monitor import monitor
 
-router = APIRouter(
-    prefix="/verify",
-    tags=["Verification"]
-)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(prefix="/verify", tags=["Verification"])
 
 
 @router.get("/hash-chain")
-def verify_hash_chain(db: Session = Depends(get_db)):
-    """
-    Verifies the integrity of the entire log chain.
-    Checks both the previous_hash link and the content hash.
-    """
-    logs = db.query(Log).order_by(Log.id.asc()).all()
-
-    if not logs:
-        return {
-            "status": "Empty",
-            "message": "No logs found for verification"
-        }
-
-    expected_previous_hash = "GENESIS"
-
-    for log in logs:
-        # 1. Check if the link to the previous log is broken
-        if log.previous_hash != expected_previous_hash:
-            return {
-                "status": "Tampered",
-                "tampered_log_id": log.id,
-                "reason": "Previous hash link mismatch",
-                "expected_previous_hash": expected_previous_hash,
-                "found_previous_hash": log.previous_hash
-            }
-
-        # 2. Reconstruct the data exactly as it was during ingestion
-        log_data = {
-            "timestamp": log.timestamp.isoformat() if log.timestamp else "NOW",
-            "source": log.source,
-            "event_type": log.event_type,
-            "username": log.username,
-            "ip_address": log.ip_address,
-            "message": log.message
-        }
-
-        # 3. Recalculate the hash
-        recalculated_hash = generate_hash(log_data, log.previous_hash)
-
-        # 4. Check if the content of this log has been changed
-        if recalculated_hash != log.current_hash:
-            return {
-                "status": "Tampered",
-                "tampered_log_id": log.id,
-                "reason": "Log content hash mismatch",
-                "stored_hash": log.current_hash,
-                "recalculated_hash": recalculated_hash
-            }
-
-        # Move to the next log in the chain
-        expected_previous_hash = log.current_hash
-
-    return {
-        "status": "Valid",
-        "message": "Hash chain verified successfully. No tampering detected.",
-        "total_logs_verified": len(logs)
-    }
+def verify_hash_chain(db: Session = Depends(get_db), claims: dict = Depends(require_admin)):
+    """Full server-side verification now (also refreshes the dashboard's
+    cached integrity status and raises an alert if tampering is new)."""
+    return monitor.check_now(reason=f"manual check by {claims['sub']}", db=db)
 
 
-@router.put("/simulate-tamper/{log_id}")
-def simulate_tampering(log_id: int, db: Session = Depends(get_db)):
-    """
-    Utility endpoint to simulate an attacker modifying a log message
-    directly in the database without updating the hash.
-    """
-    log = db.query(Log).filter(Log.id == log_id).first()
+# ---- Demo attacks: only when SECURELOG_DEMO_MODE=true, and only for admins.
+# The admin action is recorded AFTER the attack so the demo shows exactly what
+# an attacker's change looks like (a real attacker would not log anything).
+@router.put("/simulate-tamper/{log_id}", dependencies=[Depends(require_demo)])
+def simulate_tampering(log_id: int, request: Request, db: Session = Depends(get_db),
+                       claims: dict = Depends(require_admin)):
+    result = ledger.simulate_tamper(db, log_id)
+    ledger.record_server_event(db, "DEMO_ATTACK", claims["sub"], client_ip(request),
+                               f"Demo: simulate-tamper on log {log_id}")
+    monitor.check_now(reason="after demo attack", db=db)
+    return result
 
-    if not log:
-        return {
-            "status": "Not Found",
-            "message": f"Log with ID {log_id} not found"
-        }
 
-    old_message = log.message
-    log.message = log.message + " [TAMPERED]"
-
-    db.commit()
-    db.refresh(log)
-
-    return {
-        "status": "Tampering Simulated",
-        "log_id": log.id,
-        "old_message": old_message,
-        "new_message": log.message,
-        "note": "The message was changed, but the hash was NOT updated. Verification will now fail."
-    }
+@router.put("/simulate-rewrite/{log_id}", dependencies=[Depends(require_demo)])
+def simulate_rewrite(log_id: int, request: Request, db: Session = Depends(get_db),
+                     claims: dict = Depends(require_admin)):
+    result = ledger.simulate_rewrite(db, log_id)
+    ledger.record_server_event(db, "DEMO_ATTACK", claims["sub"], client_ip(request),
+                               f"Demo: simulate-rewrite on log {log_id}")
+    monitor.check_now(reason="after demo attack", db=db)
+    return result

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, errorMessage } from "./api";
 import {
   ShieldCheck,
   FileText,
@@ -14,68 +14,83 @@ import {
   KeyRound,
   Copy,
   Loader2,
+  LogOut,
+  UserCircle,
+  Bell,
+  Search,
 } from "lucide-react";
 import "./App.css";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   BarElement,
   Title,
   Tooltip,
   Legend,
 } from "chart.js";
-
 import { Bar } from "react-chartjs-2";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend);
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const getSeverity = (eventType) => {
-  if (!eventType) return "low";
+const POLL_MS = 5000;
+const LEVELS = ["critical", "high", "medium", "low"];
+const LEVEL_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+const GOOD_STATUSES = ["Valid", "Sealed", "Included", "Refreshed", "Logged out"];
+const BAD_STATUSES = ["Tampered", "Error", "Not Included", "Backend Error", "Rewrite Simulated", "Tampering Simulated"];
 
-  const event = eventType.toUpperCase();
-
-  if (
-    event.includes("FAILED") ||
-    event.includes("ERROR") ||
-    event.includes("DENIED") ||
-    event.includes("TAMPER")
-  ) {
-    return "high";
-  }
-
-  if (
-    event.includes("LOGIN") ||
-    event.includes("AUTH") ||
-    event.includes("ACCESS")
-  ) {
-    return "medium";
-  }
-
-  return "low";
+const shortenHash = (hash, start = 12, end = 8) => {
+  if (!hash) return "-";
+  if (hash.length <= start + end) return hash;
+  return `${hash.slice(0, start)}...${hash.slice(-end)}`;
 };
 
-function App() {
+// The backend sends UTC times; add "Z" when the time has no timezone so the
+// browser converts it to local time instead of treating it as local already.
+const formatTime = (iso) => {
+  if (!iso) return "-";
+  const utc = /([zZ]|[+-]\d\d:\d\d)$/.test(iso) ? iso : `${iso}Z`;
+  return new Date(utc).toLocaleString();
+};
+
+const cleanSourceName = (source) => {
+  const toDate = (iso) =>
+  iso ? new Date(/([zZ]|[+-]\d\d:\d\d)$/.test(iso) ? iso : `${iso}Z`) : null;
+
+const timeAgo = (iso) => {
+  const d = toDate(iso);
+  if (!d) return "never";
+  const s = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (s < 60) return `${s} s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+};
+  if (!source) return "-";
+  return source.replace("Ubuntu-", "Ubuntu ");
+};
+
+function App({ user, onLogout }) {
   const [stats, setStats] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [alerts, setAlerts] = useState([]);
   const [result, setResult] = useState(null);
-  const [keyInfo, setKeyInfo] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [copied, setCopied] = useState("");
   const [activeNav, setActiveNav] = useState("dashboard");
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState("");
   const [backendOnline, setBackendOnline] = useState(false);
+
   const [logLimit, setLogLimit] = useState(50);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+
   const [tamperLogId, setTamperLogId] = useState("");
+  const [proofLogId, setProofLogId] = useState("");
+  const [proof, setProof] = useState(null);
 
   const [form, setForm] = useState({
     source: "Server-01",
@@ -85,26 +100,115 @@ function App() {
     message: "Invalid password attempt",
   });
 
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  const inFlight = useRef(false);
+
+  // ---------------------------------------------------------------- data
+  const refreshData = useCallback(
+    async (showMessage = false) => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        const params = new URLSearchParams({ limit: String(logLimit) });
+        if (searchTerm) params.set("q", searchTerm);
+        if (severityFilter) params.set("severity", severityFilter);
+
+        const [statsRes, logsRes, alertsRes] = await Promise.all([
+          api.get("/dashboard/stats"),
+          api.get(`/logs/?${params.toString()}`),
+          api.get("/dashboard/alerts?limit=5"),
+        ]);
+        setStats(statsRes.data);
+        setLogs(logsRes.data.items);
+        setLogsTotal(logsRes.data.total);
+        setAlerts(alertsRes.data);
+        setBackendOnline(true);
+        setLastUpdated(new Date().toLocaleTimeString());
+        if (showMessage) {
+          setResult({ status: "Refreshed", message: "Dashboard data updated." });
+        }
+      } catch (err) {
+        if (err?.response?.status === 401) return; // AuthGate shows the login page
+        setBackendOnline(Boolean(err?.response));
+        setResult({
+          status: "Backend Error",
+          message: errorMessage(err, "The backend returned an error."),
+        });
+      } finally {
+        inFlight.current = false;
+      }
+    },
+    [logLimit, searchTerm, severityFilter]
+  );
+
+  // Poll every 5 s, but not while the browser tab is hidden.
+  useEffect(() => {
+    refreshData(false);
+    const interval = setInterval(() => {
+      if (!document.hidden) refreshData(false);
+    }, POLL_MS);
+    return () => clearInterval(interval);
+  }, [refreshData]);
+
+  // Search runs on the server, 400 ms after the user stops typing.
+  useEffect(() => {
+    const t = setTimeout(() => setSearchTerm(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Run one button's action: show its spinner, show the result, refresh.
+  const runAction = async (name, request, fallback) => {
+    setBusy(name);
+    try {
+      const res = await request();
+      setResult(res.data);
+      await refreshData(false);
+      return res.data;
+    } catch (err) {
+      setResult({ status: "Error", message: errorMessage(err, fallback) });
+      return null;
+    } finally {
+      setBusy("");
+    }
   };
 
-  const shortenHash = (hash, start = 12, end = 8) => {
-    if (!hash) return "-";
-    if (hash.length <= start + end) return hash;
-    return `${hash.slice(0, start)}...${hash.slice(-end)}`;
+  // ---------------------------------------------------------------- actions
+  const addLog = (e) => {
+    e.preventDefault();
+    runAction("add", () => api.post("/logs/manual", form), "Failed to add log.");
   };
 
-  const cleanSourceName = (source) => {
-   
-    if (!source) return "-";
-    return source
-      .replace("Ubuntu-Ubuntu-SecureLog-Server1", "Ubuntu Server")
-      .replace("Ubuntu-SecureLog-Server1", "Ubuntu Server")
-      .replace("Ubuntu-", "Ubuntu ");
+  const verifyHashChain = () =>
+    runAction("verify", () => api.get("/verify/hash-chain"), "Failed to verify the log.");
+
+  const sealBatch = () =>
+    runAction("seal", () => api.post("/merkle/seal"), "Failed to seal the open batch.");
+
+  const verifyBatch = (batchId) => {
+    if (!batchId) {
+      setResult({ status: "Nothing to verify", message: "No batch has been sealed yet." });
+      return;
+    }
+    runAction(`batch-${batchId}`, () => api.get(`/merkle/verify/${batchId}`),
+      "Failed to verify the batch.");
+  };
+
+  const getProof = async () => {
+    if (!proofLogId) {
+      setResult({ status: "Error", message: "Enter a log ID to prove." });
+      return;
+    }
+    const data = await runAction("proof", () => api.get(`/merkle/proof/${proofLogId}`),
+      "Failed to build the Merkle proof.");
+    setProof(data);
+  };
+
+  const simulate = (kind) => {
+    if (!tamperLogId) {
+      setResult({ status: "Error", message: "Enter a log ID first." });
+      return;
+    }
+    runAction(kind, () => api.put(`/verify/simulate-${kind}/${tamperLogId}`),
+      `Failed to simulate ${kind}.`);
   };
 
   const copyToClipboard = async (value, label) => {
@@ -118,241 +222,73 @@ function App() {
     }
   };
 
-  const refreshData = async (showMessage = true) => {
-    try {
-      const statsRes = await axios.get(`${API_URL}/dashboard/stats`);
-      const logsRes = await axios.get(`${API_URL}/logs/?limit=${logLimit}`);
-      const keyRes = await axios.get(`${API_URL}/keys/current`);
-      setBackendOnline(true);
-
-      setStats(statsRes.data);
-      setLogs(logsRes.data);
-      setKeyInfo(keyRes.data);
-      setLastUpdated(new Date().toLocaleTimeString());
-      setLastUpdated(new Date().toLocaleTimeString());
-setBackendOnline(true);
-
-      if (showMessage) {
-        setResult({
-          status: "Refreshed",
-          message: "Dashboard data updated successfully",
-          time: new Date().toLocaleTimeString(),
-        });
-      }
-    } catch {
-      setBackendOnline(false);
-      setResult({
-        
-        status: "Backend Error",
-        message: "Backend server is not responding. Make sure FastAPI is running.",
-      });
-    }
+  const goTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveNav(id);
   };
 
- useEffect(() => {
-  refreshData(false);
-
-  const interval = setInterval(() => {
-    refreshData(false);
-  }, 5000);
-
-  return () => clearInterval(interval);
-}, [logLimit]);
-
-  const addLog = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/logs/add`, form);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to add log." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyHashChain = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/verify/hash-chain`);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to verify hash chain." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateMerkleRoot = async () => {
-    setLoading(true);
-    try {
-      const batchId = stats?.latest_batch_id || 1;
-      const res = await axios.post(`${API_URL}/merkle/generate/${batchId}`);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to generate Merkle Root." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyMerkleRoot = async () => {
-    setLoading(true);
-    try {
-      const batchId = stats?.latest_batch_id || 1;
-      const res = await axios.get(`${API_URL}/merkle/verify/${batchId}`);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to verify Merkle Root." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const evolveKey = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/keys/evolve`);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to evolve forward-secure key." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const simulateTampering = async () => {
-    if (!tamperLogId) {
-      setResult({ status: "Error", message: "Please enter a Log ID to tamper." });
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await axios.put(`${API_URL}/verify/simulate-tamper/${tamperLogId}`);
-      setResult(res.data);
-      await refreshData(false);
-    } catch {
-      setResult({ status: "Error", message: "Failed to simulate tampering." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ---------------------------------------------------------------- derived
+  const integrity = stats?.integrity;
   const isValid = stats?.integrity_status === "Valid";
-  const latestKeyHash =
-    result?.forward_secure_key_hash ||
-    result?.current_key_hash ||
-    keyInfo?.current_key_hash;
-  const latestKeyVersion = result?.key_version || keyInfo?.key_version || "-";
-const filteredLogs = logs.filter((log) =>
-  JSON.stringify(log)
-    .toLowerCase()
-    .includes(searchTerm.toLowerCase())
-);
-  const criticalCount = logs.filter(
-    log => log.event_type?.includes("TAMPER")
-  ).length;
+  const counts = stats?.severity_counts || { critical: 0, high: 0, medium: 0, low: 0 };
+  const maxCount = Math.max(1, ...LEVELS.map((l) => counts[l]));
+  const openPercent = stats
+    ? Math.min(100, Math.round((stats.open_batch_logs / stats.batch_size) * 100))
+    : 0;
 
-  const highCount = logs.filter(
-    log =>
-      log.event_type === "AUTH_FAILED" ||
-      log.event_type === "APP_LOGIN_FAILED" ||
-      log.event_type === "SYSTEM_ERROR"
-  ).length;
+  const agentList = stats?.agents || [];
+  const agentsOnline = agentList.filter((a) => a.status === "online").length;
+  // Serious alerts from the last hour get a banner at the top.
+  // An agent alert is resolved once that agent is online again.
+  const agentAlertResolved = (a) =>
+    (a.alert_type === "AGENT_STOPPED" || a.alert_type === "AGENT_SILENT") &&
+    agentList.some(
+      (ag) => ag.status === "online" && (a.description || "").includes(`'${ag.agent_id}'`)
+    );
+  const recentAlert = alerts.find(
+    (a) =>
+      (a.severity === "critical" || a.severity === "high") &&
+      !agentAlertResolved(a) &&
+      Date.now() - (toDate(a.created_at)?.getTime() ?? 0) < 60 * 60 * 1000
+  );
 
-  const mediumCount = logs.filter(
-    log =>
-      log.event_type === "DATABASE_ACCESS" ||
-      log.event_type === "AUTH_SUCCESS" ||
-      log.event_type === "APP_LOGIN_SUCCESS"
-  ).length;
-
-  const lowCount = logs.filter(
-    
-    log =>
-      log.event_type === "SESSION_OPENED" ||
-      log.event_type === "SESSION_CLOSED" ||
-      log.event_type === "FIREWALL_ALLOWED" ||
-      log.event_type === "SERVICE_RESTARTED"
-  ).length;
+  const resultTone = !result
+    ? ""
+    : GOOD_STATUSES.includes(result.status)
+    ? "good"
+    : BAD_STATUSES.includes(result.status)
+    ? "bad"
+    : "neutral";
   const threatChartData = {
-  labels: ["Critical", "High", "Medium", "Low"],
-  datasets: [
-    {
-      label: "Security Events",
-      data: [
-        criticalCount,
-        highCount,
-        mediumCount,
-        lowCount,
-      ],
-      backgroundColor: [
-        "#ef4444",
-        "#f97316",
-        "#facc15",
-        "#22c55e",
-      ],
-      borderRadius: 8,
+    labels: LEVELS.map((l) => LEVEL_LABEL[l]),
+    datasets: [
+      {
+        label: "Events (all logs)",
+        data: LEVELS.map((l) => counts[l]),
+        backgroundColor: ["#ef4444", "#f97316", "#facc15", "#22c55e"],
+        borderRadius: 8,
+      },
+    ],
+  };
+
+  const threatChartOptions = {
+    responsive: true,
+    plugins: { legend: { labels: { color: "#e5eefc" } } },
+    scales: {
+       y: {
+        type: "logarithmic",
+        title: { display: true, text: "Events (log scale)", color: "#94a3b8" },
+        ticks: { color: "#cbd5e1" },
+        grid: { color: "rgba(255,255,255,0.08)" },
+      },
+      x: { ticks: { color: "#cbd5e1" }, grid: { color: "rgba(255,255,255,0.05)" } },
     },
-  ],
-};
+  };
 
-const threatChartOptions = {
-  responsive: true,
-  plugins: {
-    legend: {
-      labels: {
-        color: "#e5eefc",
-      },
-    },
-  },
-  scales: {
-    y: {
-      ticks: {
-        color: "#cbd5e1",
-      },
-      grid: {
-        color: "rgba(255,255,255,0.08)",
-      },
-    },
-    x: {
-      ticks: {
-        color: "#cbd5e1",
-      },
-      grid: {
-        color: "rgba(255,255,255,0.05)",
-      },
-    },
-  }
-};
-const recentThreats = logs.filter(
-  
-  (log) =>
-     log.event_type?.includes("FAILED") ||
-      log.event_type?.includes("ERROR") ||
-      log.event_type?.includes("TAMPER")
-  )
-  .slice(0, 5);
+  const spinnerOr = (name, icon) =>
+    busy === name ? <Loader2 size={16} className="spin" /> : icon;
 
-const ipCounts = {};
-
-logs.forEach((log) => {
-  if (log.ip_address) {
-    ipCounts[log.ip_address] =
-      (ipCounts[log.ip_address] || 0) + 1;
-  }
-});
-
-const topIPs = Object.entries(ipCounts)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 5);
-
+  // ---------------------------------------------------------------- view
   return (
     <div className="app">
       <aside className="sidebar">
@@ -367,152 +303,120 @@ const topIPs = Object.entries(ipCounts)
         </div>
 
         <nav className="menu">
-          <button
-            type="button"
-            className={activeNav === "dashboard" ? "active" : ""}
-            onClick={() => { scrollToSection("dashboard"); setActiveNav("dashboard"); }}
-          >
-            <Database size={18} /> Dashboard
-          </button>
-
-          <button
-            type="button"
-            className={activeNav === "logs" ? "active" : ""}
-            onClick={() => { scrollToSection("logs"); setActiveNav("logs"); }}
-          >
-            <FileText size={18} /> Logs
-          </button>
-
-          <button
-            type="button"
-            className={activeNav === "hash-chain" ? "active" : ""}
-            onClick={() => { scrollToSection("hash-chain"); setActiveNav("hash-chain"); }}
-          >
-            <Link2 size={18} /> Hash Chain
-          </button>
-
-          <button
-            type="button"
-            className={activeNav === "merkle-tree" ? "active" : ""}
-            onClick={() => { scrollToSection("merkle-tree"); setActiveNav("merkle-tree"); }}
-          >
-            <GitBranch size={18} /> Merkle Tree
-          </button>
-
-          <button
-            type="button"
-            className={activeNav === "key-section" ? "active" : ""}
-            onClick={() => { scrollToSection("key-section"); setActiveNav("key-section"); }}
-          >
-            <KeyRound size={18} /> Forward Key
-          </button>
+          {[
+            ["dashboard", <Database size={18} />, "Dashboard"],
+            ["logs", <FileText size={18} />, "Logs"],
+            ["hash-chain", <Link2 size={18} />, "Hash Chain"],
+            ["merkle-tree", <GitBranch size={18} />, "Merkle Tree"],
+            ["key-section", <KeyRound size={18} />, "Forward Key"],
+          ].map(([id, icon, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={activeNav === id ? "active" : ""}
+              onClick={() => goTo(id)}
+            >
+              {icon} {label}
+            </button>
+          ))}
         </nav>
 
         <div className="integrityBox">
           <p>System Integrity</p>
           <div className={isValid ? "integrity valid" : "integrity tampered"}>
             {isValid ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-            {stats?.integrity_status || "No Logs"}
+            {stats?.integrity_status || "Checking..."}
           </div>
+          {integrity?.checked_at && (
+            <p className="integrityMeta">
+              Checked {new Date(integrity.checked_at).toLocaleTimeString()} ·{" "}
+              every {integrity.interval_seconds}s
+            </p>
+          )}
         </div>
       </aside>
 
       <main className="main" id="dashboard">
         <header className="header">
-  <div>
-    <span className="label">FINAL YEAR PROJECT — BS CYBERSECURITY</span>
-    <h1>Secure Log Management System</h1>
-    <p>
-      Tamper-evident log storage using SHA-256, Hash Chaining, Merkle
-      Tree verification, and Forward-Secure Key Evolution.
-    </p>
-  </div>
+          <div>
+            <span className="label">FINAL YEAR PROJECT — BS CYBERSECURITY</span>
+            <h1>Secure Log Management System</h1>
+            <p>
+              Tamper-evident log storage using SHA-256, Hash Chaining, Merkle Tree
+              verification, and Forward-Secure Key Evolution.
+            </p>
+          </div>
 
-  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className={`liveStatus ${backendOnline ? "online" : "offline"}`}>
+              {backendOnline ? "🟢 BACKEND CONNECTED" : "🔴 BACKEND DISCONNECTED"}
+            </div>
+            <div className="lastUpdated">Last Updated: {lastUpdated || "--:--:--"}</div>
+            <div className="userBadge" title={`Session expires ${user?.expires_at ?? ""}`}>
+              <UserCircle size={16} /> {user?.username}
+            </div>
+            <button className="refreshBtn" onClick={onLogout}>
+              <LogOut size={16} /> Logout
+            </button>
+            <button className="refreshBtn" onClick={() => refreshData(true)}>
+              <RefreshCw size={16} /> Refresh
+            </button>
+          </div>
+        </header>
 
-    <div
-  className={`liveStatus ${
-    backendOnline ? "online" : "offline"
-  }`}
->
-  {backendOnline
-    ? "🟢 BACKEND CONNECTED"
-    : "🔴 BACKEND DISCONNECTED"}
-</div>
-<div className="lastUpdated">
-  Last Updated: {lastUpdated || "--:--:--"}
-</div>
-    <button
-  className="refreshBtn"
-  onClick={() => refreshData(true)}
-  disabled={loading}
->
-  {loading ? (
-    <Loader2 size={16} className="spin" />
-  ) : (
-    <RefreshCw size={16} />
-  )}
-  Refresh
-</button>
-  </div>
-</header>
-{recentThreats.length > 0 && (
-  <div className="attackAlert">
-    🚨 SECURITY ALERT: {recentThreats.length} suspicious events detected
-  </div>
-)}
+        {stats && !isValid && (
+          <div className="attackAlert">
+            🚨 INTEGRITY ALERT: {integrity?.problems_found} problem(s) found
+            {integrity?.problem_types?.length > 0 && ` (${integrity.problem_types.join(", ")})`}.
+            Click “Verify Hash Chain” for details.
+          </div>
+        )}
+
         <section className="stats">
           <div className="alertSummary">
-  <div className="alertCard critical">
-    <h3>{criticalCount}</h3>
-    <p>Critical Events</p>
-  </div>
+            {LEVELS.map((level) => (
+              <div
+                key={level}
+                className={`alertCard ${level} clickableCard`}
+                onClick={() => {
+                  setSeverityFilter(level);
+                  goTo("logs");
+                }}
+                title={`Show ${LEVEL_LABEL[level].toLowerCase()} events`}
+              >
+                <h3>{counts[level]}</h3>
+                <p>{level === "critical" ? "Critical Events" : `${LEVEL_LABEL[level]} Severity`}</p>
+              </div>
+            ))}
+          </div>
 
-  <div className="alertCard high">
-    <h3>{highCount}</h3>
-    <p>High Severity</p>
-  </div>
-
-  <div className="alertCard medium">
-    <h3>{mediumCount}</h3>
-    <p>Medium Severity</p>
-  </div>
-
-  <div className="alertCard low">
-    <h3>{lowCount}</h3>
-    <p>Low Severity</p>
-  </div>
-</div>
-          <div className="statCard clickableCard" onClick={() => { scrollToSection("logs"); setActiveNav("logs"); }}>
+          <div className="statCard clickableCard" onClick={() => goTo("logs")}>
             <div>
               <p>Total Logs</p>
               <h2>{stats?.total_logs ?? 0}</h2>
             </div>
             <Database size={28} />
           </div>
-
-          <div className="statCard clickableCard" onClick={() => { scrollToSection("merkle-tree"); setActiveNav("merkle-tree"); }}>
+          <div className="statCard clickableCard" onClick={() => goTo("merkle-tree")}>
             <div>
-              <p>Merkle Roots</p>
+              <p>Sealed Batches</p>
               <h2>{stats?.total_merkle_roots ?? 0}</h2>
             </div>
             <GitBranch size={28} />
           </div>
-
-          <div className="statCard clickableCard" onClick={() => { scrollToSection("hash-chain"); setActiveNav("hash-chain"); }}>
+          <div className="statCard clickableCard" onClick={() => goTo("hash-chain")}>
             <div>
               <p>Integrity Status</p>
               <h2 className={isValid ? "greenText" : "redText"}>
-                {stats?.integrity_status || "No Logs"}
+                {stats?.integrity_status || "Checking..."}
               </h2>
             </div>
             {isValid ? <CheckCircle size={28} /> : <AlertTriangle size={28} />}
           </div>
-
-          <div className="statCard clickableCard" onClick={() => { scrollToSection("key-section"); setActiveNav("key-section"); }}>
+          <div className="statCard clickableCard" onClick={() => goTo("key-section")}>
             <div>
               <p>Key Version</p>
-              <h2>{latestKeyVersion}</h2>
+              <h2>{stats?.key_version ?? "-"}</h2>
             </div>
             <KeyRound size={28} />
           </div>
@@ -522,37 +426,32 @@ const topIPs = Object.entries(ipCounts)
           <div className="panel">
             <div className="panelHeader">
               <h3>Add Security Log</h3>
-              <span>Hash generated automatically</span>
+              <span>Recorded as dashboard:{user?.username}</span>
             </div>
-
             <form className="logForm" onSubmit={addLog}>
-              <div className="field">
-                <label>Source</label>
-                <input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
-              </div>
-
-              <div className="field">
-                <label>Event Type</label>
-                <input value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
-              </div>
-
-              <div className="field">
-                <label>Username</label>
-                <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-              </div>
-
-              <div className="field">
-                <label>IP Address</label>
-                <input value={form.ip_address} onChange={(e) => setForm({ ...form, ip_address: e.target.value })} />
-              </div>
-
+              {[
+                ["source", "Source"],
+                ["event_type", "Event Type"],
+                ["username", "Username"],
+                ["ip_address", "IP Address"],
+              ].map(([key, label]) => (
+                <div className="field" key={key}>
+                  <label>{label}</label>
+                  <input
+                    value={form[key]}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  />
+                </div>
+              ))}
               <div className="field full">
                 <label>Message</label>
-                <input value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+                <input
+                  value={form.message}
+                  onChange={(e) => setForm({ ...form, message: e.target.value })}
+                />
               </div>
-
-              <button className="primaryBtn" type="submit" disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+              <button className="primaryBtn" type="submit" disabled={Boolean(busy)}>
+                {spinnerOr("add", <Plus size={16} />)}
                 Add Log
               </button>
             </form>
@@ -563,41 +462,42 @@ const topIPs = Object.entries(ipCounts)
               <h3>Security Actions</h3>
               <span>Verification controls</span>
             </div>
-
             <div className="actions">
-              <button onClick={verifyHashChain} disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
+              <button onClick={verifyHashChain} disabled={Boolean(busy)}>
+                {spinnerOr("verify", <Link2 size={16} />)}
                 Verify Hash Chain
               </button>
-
-              <button onClick={generateMerkleRoot} disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <GitBranch size={16} />}
-                Generate Merkle Root
+              <button onClick={sealBatch} disabled={Boolean(busy)}>
+                {spinnerOr("seal", <GitBranch size={16} />)}
+                Seal Batch Now
+              </button>
+              <button
+                onClick={() => verifyBatch(stats?.latest_batch_id)}
+                disabled={Boolean(busy)}
+              >
+                {spinnerOr(`batch-${stats?.latest_batch_id}`, <ShieldCheck size={16} />)}
+                Verify Latest Batch
               </button>
 
-              <button onClick={verifyMerkleRoot} disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
-                Verify Merkle Root
-              </button>
-
-              <button onClick={evolveKey} disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <KeyRound size={16} />}
-                Evolve Forward Key
-              </button>
-
-              <div className="tamperRow">
-                <input
-                  type="number"
-                  placeholder="Log ID to tamper..."
-                  value={tamperLogId}
-                  onChange={(e) => setTamperLogId(e.target.value)}
-                  className="tamperInput"
-                />
-                <button className="danger" onClick={simulateTampering} disabled={loading}>
-                  {loading ? <Loader2 size={16} className="spin" /> : <AlertTriangle size={16} />}
-                  Simulate Tamper
-                </button>
-              </div>
+              {user?.demo_mode && (
+                <div className="tamperRow">
+                  <input
+                    type="number"
+                    placeholder="Log ID to attack..."
+                    value={tamperLogId}
+                    onChange={(e) => setTamperLogId(e.target.value)}
+                    className="tamperInput"
+                  />
+                  <button className="danger" onClick={() => simulate("tamper")} disabled={Boolean(busy)}>
+                    {spinnerOr("tamper", <AlertTriangle size={16} />)}
+                    Simulate Tamper
+                  </button>
+                  <button className="danger" onClick={() => simulate("rewrite")} disabled={Boolean(busy)}>
+                    {spinnerOr("rewrite", <AlertTriangle size={16} />)}
+                    Simulate Rewrite
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -605,139 +505,311 @@ const topIPs = Object.entries(ipCounts)
         <section className="gridTwo">
           <div className="panel">
             <div className="panelHeader">
-              <h3>Latest API Result</h3>
+              <h3>Latest Result</h3>
               <span>System response</span>
             </div>
-            <pre>{result ? JSON.stringify(result, null, 2) : "No action yet"}</pre>
+            {result ? (
+              <>
+                <div className={`resultBadge ${resultTone}`}>
+                  {result.status || "Done"}
+                </div>
+                {(result.message || result.expected_result || result.note) && (
+                  <p className="resultMessage">
+                    {result.message || result.expected_result || result.note}
+                  </p>
+                )}
+                {Array.isArray(result.problems) && result.problems.length > 0 && (
+                  <ul className="problemList">
+                    {result.problems.slice(0, 8).map((p, i) => (
+                      <li key={i}>
+                        {typeof p === "string" ? p : (
+                          <>
+                            <strong>{p.type}</strong> {p.detail}
+                            {p.log_id !== undefined && ` (log ${p.log_id})`}
+                            {p.batch_id !== undefined && ` (batch ${p.batch_id})`}
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <details className="rawJson">
+                  <summary>Show full response</summary>
+                  <pre>{JSON.stringify(result, null, 2)}</pre>
+                </details>
+              </>
+            ) : (
+              <pre>No action yet</pre>
+            )}
           </div>
 
-          <div className="panel" id="merkle-tree">
+          <div className="panel">
             <div className="panelHeader">
-              <h3>Latest Merkle Root</h3>
-              <span>SHA-256 root hash</span>
+              <h3>System Health</h3>
+              <span>Live status</span>
             </div>
-            <div className="hashBox">
-              {stats?.latest_merkle_root || "No Merkle Root generated yet"}
+            <div className="healthGrid">
+              <div className="healthItem">
+                {backendOnline ? "🟢 Backend online" : "🔴 Backend offline"}
+              </div>
+              <div className="healthItem">
+                {isValid ? "🟢" : "🔴"} Log integrity: {stats?.integrity_status || "-"}
+                {integrity && (
+                  <small> · {integrity.total_logs_verified} logs in {integrity.duration_ms} ms</small>
+                )}
+              </div>
+              <div className="healthItem">
+                {stats?.total_merkle_roots > 0 ? "🟢" : "⚪"} Merkle: {stats?.total_merkle_roots ?? 0}{" "}
+                batches sealed
+              </div>
+              <div className="healthItem">
+                🟢 Forward key: version {stats?.key_version ?? "-"}
+              </div>
+              <div className="healthItem">
+                {stats?.total_alerts > 0 ? "🟠" : "🟢"} Alerts raised: {stats?.total_alerts ?? 0}
+              </div>
+            </div>
+
+            <div className="panelHeader" style={{ marginTop: "18px" }}>
+              <h3>Severity Distribution</h3>
+              <span>All {stats?.total_logs ?? 0} logs</span>
+            </div>
+            <div className="severityChart">
+              {LEVELS.map((level) => (
+                <div className="chartRow" key={level}>
+                  <span>{LEVEL_LABEL[level]}</span>
+                  <div
+                    className={`chartBar ${level}Bar`}
+                    style={{ width: `${(counts[level] / maxCount) * 100}%`, maxWidth: "60%" }}
+                  />
+                  <strong>{counts[level]}</strong>
+                </div>
+              ))}
             </div>
           </div>
         </section>
-        <section className="panel">
-  <div className="panelHeader">
-     <h3>System Health</h3>
-    <span>Live Status</span>
-  </div>
 
-  <div className="healthGrid">
-    <div className="healthItem">
-      🟢 Backend Online
-    </div>
+        <section className="gridTwo" id="merkle-tree">
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Merkle Batches</h3>
+              <span>Sealed with HMAC, append-only</span>
+            </div>
 
-    <div className="healthItem">
-      {isValid
-        ? "🟢 Hash Chain Valid"
-        : "🔴 Hash Chain Broken"}
-    </div>
+            <p className="keyNote">
+              Open batch {stats?.open_batch_id ?? "-"}: {stats?.open_batch_logs ?? 0}/
+              {stats?.batch_size ?? 100} logs (seals when full or after {Math.round((stats?.seal_max_age_seconds ?? 600) / 60)} min)
+            </p>
+            <div className="progressTrack">
+              <div className="progressFill" style={{ width: `${openPercent}%` }} />
+            </div>
 
-    <div className="healthItem">
-      🟢 Merkle Tree Active
-    </div>
+            {stats?.recent_batches?.length ? (
+              <div className="tableWrapper">
+                <table className="batchTable">
+                  <thead>
+                    <tr>
+                      <th>Batch</th>
+                      <th>Logs</th>
+                      <th>Merkle Root</th>
+                      <th>Sealed</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.recent_batches.map((b) => (
+                      <tr key={b.batch_id}>
+                        <td><span className="batchPill">{b.batch_id}</span></td>
+                        <td>
+                          {b.total_logs} <small>(#{b.first_log_id}–{b.last_log_id})</small>
+                        </td>
+                        <td className="hash" title={b.root_hash}>{shortenHash(b.root_hash, 10, 6)}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{formatTime(b.created_at)}</td>
+                        <td>
+                          <button
+                            className="smallBtn"
+                            onClick={() => verifyBatch(b.batch_id)}
+                            disabled={Boolean(busy)}
+                          >
+                            {busy === `batch-${b.batch_id}` ? <Loader2 size={13} className="spin" /> : "Verify"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="hashBox">No batch sealed yet</div>
+            )}
+          </div>
 
-    <div className="healthItem">
-      🟢 Forward Key Active
-    </div>
-  </div>
-    <h3>Severity Distribution</h3>
-    <span>Security Analytics</span>
-  
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Merkle Inclusion Proof</h3>
+              <span>Prove one log is in its sealed batch</span>
+            </div>
+            <div className="tamperRow">
+              <input
+                type="number"
+                placeholder="Log ID..."
+                value={proofLogId}
+                onChange={(e) => setProofLogId(e.target.value)}
+                className="tamperInput"
+              />
+              <button className="primaryBtn" onClick={getProof} disabled={Boolean(busy)}>
+                {spinnerOr("proof", <ShieldCheck size={16} />)}
+                Get Proof
+              </button>
+            </div>
+            {proof && proof.proof && (
+              <div className="proofBox">
+                <div className={`resultBadge ${proof.status === "Included" ? "good" : "bad"}`}>
+                  {proof.status}
+                </div>
+                <p className="keyNote">
+                  Log {proof.log_id} is leaf {proof.leaf_index} of batch {proof.batch_id}. Only{" "}
+                  <strong>{proof.proof_length}</strong> sibling hashes are needed to reach the root,
+                  instead of reading every log in the batch.
+                </p>
+                <ol className="proofPath">
+                  <li className="hash">leaf: {shortenHash(proof.entry_hash, 10, 6)}</li>
+                  {proof.proof.map((step, i) => (
+                    <li key={i} className="hash">
+                      + {step.position} sibling {shortenHash(step.sibling, 10, 6)}
+                    </li>
+                  ))}
+                  <li className="hash">= root: {shortenHash(proof.root_hash, 10, 6)}</li>
+                </ol>
+              </div>
+            )}
+            {proof && !proof.proof && <p className="keyNote">{proof.message}</p>}
+          </div>
+        </section>
 
-  <div className="severityChart">
+        <section className="gridTwo">
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Threat Activity Overview</h3>
+              <span>All logs by severity</span>
+            </div>
+            <Bar data={threatChartData} options={threatChartOptions} />
+          </div>
 
-    <div className="chartRow">
-      <span>Critical</span>
-      <div
-        className="chartBar criticalBar"
-        style={{ width: `${criticalCount * 5}px` }}
-      />
-      <strong>{criticalCount}</strong>
-    </div>
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Recent Threat Feed</h3>
+              <span>Latest critical and high events</span>
+            </div>
+            <div className="threatFeed">
+              {!stats?.recent_threats?.length ? (
+                <p>No threats detected.</p>
+              ) : (
+                stats.recent_threats.map((log) => (
+                  <div key={log.id} className="threatItem">
+                    <div>
+                      <strong>
+                        <div className={`eventPill event-${log.severity}`} style={{ display: "inline-block" }}>
+                          {log.event_type}
+                        </div>
+                      </strong>
+                      <p>
+                        #{log.id} · {log.username} · {log.ip_address} · {log.agent_id}
+                      </p>
+                    </div>
+                    <span>{formatTime(log.event_time || log.timestamp)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
 
-    <div className="chartRow">
-      <span>High</span>
-      <div
-        className="chartBar highBar"
-        style={{ width: `${highCount * 5}px` }}
-      />
-      <strong>{highCount}</strong>
-    </div>
+        <section className="gridTwo">
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>
+                <Bell size={16} style={{ verticalAlign: "-2px" }} /> Integrity Alerts
+              </h3>
+              <span>Raised automatically by the monitor</span>
+            </div>
+            <div className="threatFeed">
+              {alerts.length === 0 ? (
+                <p>No integrity alerts. The log has never failed a check.</p>
+              ) : (
+                alerts.map((a) => (
+                  <div key={a.id} className="threatItem alertItem">
+                    <div>
+                      <strong>{a.alert_type}</strong>
+                      <p>{a.description}</p>
+                    </div>
+                    <span>{formatTime(a.created_at)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
 
-    <div className="chartRow">
-      <span>Medium</span>
-      <div
-        className="chartBar mediumBar"
-        style={{ width: `${mediumCount * 5}px` }}
-      />
-      <strong>{mediumCount}</strong>
-    </div>
+          <div className="panel">
+            <div className="panelHeader">
+              <h3>Top Active IP Addresses</h3>
+              <span>Across all logs</span>
+            </div>
+            <div className="topIpList">
+              {!stats?.top_ips?.length ? (
+                <p>No data yet.</p>
+              ) : (
+                stats.top_ips.map(({ ip, count }) => (
+                  <div
+                    key={ip}
+                    className="ipRow clickableCard"
+                    onClick={() => {
+                      setSearchInput(ip);
+                      setSeverityFilter("");
+                      goTo("logs");
+                    }}
+                    title="Show logs from this IP"
+                  >
+                    <span>{ip}</span>
+                    <strong>{count} events</strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
 
-    <div className="chartRow">
-      <span>Low</span>
-      <div
-        className="chartBar lowBar"
-        style={{ width: `${lowCount * 5}px` }}
-      />
-      <strong>{lowCount}</strong>
-    </div>
-
-  </div>
-</section>
-<section className="panel">
-  <div className="panelHeader">
-    <h3>Top Active IP Addresses</h3>
-    <span>Traffic Sources</span>
-  </div>
-
-  <div className="topIpList">
-    {topIPs.map(([ip, count]) => (
-      <div key={ip} className="ipRow">
-        <span>{ip}</span>
-        <strong>{count} events</strong>
-      </div>
-    ))}
-  </div>
-</section>
         <section className="gridTwo" id="key-section">
           <div className="panel keyPanel">
             <div className="panelHeader">
               <h3>Forward-Secure Key State</h3>
               <span>HMAC-SHA256 key evolution</span>
             </div>
-
             <div className="keyGrid">
               <div className="keyMetric">
                 <p>Current Key Version</p>
-                <h2>{latestKeyVersion}</h2>
+                <h2>{stats?.key_version ?? "-"}</h2>
               </div>
               <div className="keyMetric">
                 <p>Protection Mode</p>
                 <h2>Forward Secure</h2>
               </div>
             </div>
-
             <div className="keyHashBlock">
               <div>
-                <p>Current Key Hash</p>
-                <strong>{shortenHash(latestKeyHash, 18, 12)}</strong>
+                <p>K0 Fingerprint (public commitment)</p>
+                <strong>{shortenHash(stats?.k0_fingerprint, 18, 12)}</strong>
               </div>
-              <button type="button" onClick={() => copyToClipboard(latestKeyHash, "key")}>
+              <button type="button" onClick={() => copyToClipboard(stats?.k0_fingerprint, "key")}>
                 <Copy size={15} />
                 {copied === "key" ? "Copied" : "Copy"}
               </button>
             </div>
-
             <p className="keyNote">
-              Each evolved key is generated using HMAC-SHA256 one-way key derivation.
-              Older keys cannot be reconstructed from the current key hash, ensuring
-              forward security even if the current key is compromised.
+              Each log is MACed with the key of its batch. When a batch is sealed, the key
+              evolves one-way (K<sub>b+1</sub> = SHA-256(K<sub>b</sub>)) and the old key is
+              destroyed, so a later compromise cannot forge earlier batches. The secret key is
+              never sent to this dashboard; only the auditor holding K0 can check old seals.
             </p>
           </div>
 
@@ -747,75 +819,71 @@ const topIPs = Object.entries(ipCounts)
               <span>Integrity pipeline</span>
             </div>
             <div className="flowSteps">
-              <div>Ubuntu Logs</div><span>→</span>
-              <div>SHA-256 Hash</div><span>→</span>
-              <div>Hash Chain</div><span>→</span>
-              <div>Merkle Root</div><span>→</span>
-              <div>Forward Key</div>
+              <div>Ubuntu Logs</div>
+              <span>→</span>
+              <div>Hash Chain</div>
+              <span>→</span>
+              <div>HMAC (K<sub>b</sub>)</div>
+              <span>→</span>
+              <div>Merkle Root</div>
+              <span>→</span>
+              <div>Seal + Evolve Key</div>
             </div>
           </div>
         </section>
-<section className="panel">
-  <div className="panelHeader">
-    <h3>Threat Activity Overview</h3>
-    <span>Live Security Events</span>
-  </div>
 
-  <Bar data={threatChartData}
-  options={threatChartOptions}
-   />
-   <section className="panel">
-  <div className="panelHeader">
-    <h3>Recent Threat Feed</h3>
-    <span>Latest Security Incidents</span>
-  </div>
-
-  <div className="threatFeed">
-    {recentThreats.length === 0 ? (
-      <p>No threats detected.</p>
-    ) : (
-      recentThreats.map((log, index) => (
-        <div key={index} className="threatItem">
-          <div>
-            <strong>{log.event_type}</strong>
-            <p>{log.source}</p>
-          </div>
-
-          <span>
-            {new Date(log.created_at).toLocaleString()}
-          </span>
-        </div>
-      ))
-    )}
-  </div>
-</section>
-</section>
         <section className="panel" id="logs">
           <div className="panelHeader">
-            <h3>Recent Security Logs</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span>{logs.length} records shown</span>
-              <select
-                value={logLimit}
-                onChange={(e) => setLogLimit(Number(e.target.value))}
-                className="limitSelect"
-              >
-                <option value={50}>Last 50</option>
-                <option value={100}>Last 100</option>
-                <option value={250}>Last 250</option>
-                <option value={500}>Last 500</option>
-              </select>
-            </div>
+            <h3>Security Logs</h3>
+            <span>
+              Showing {logs.length} of {logsTotal}
+              {searchTerm || severityFilter ? " matching" : ""} logs
+            </span>
           </div>
-<div style={{ marginBottom: "15px" }}>
-  <input
-    type="text"
-    placeholder="Search logs by user, IP, event, source..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    className="searchInput"
-  />
-</div>
+
+          <div className="filterRow">
+            <div className="searchWrap">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Search all logs: user, IP, event, message, agent, or log ID..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="searchInput"
+              />
+            </div>
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="limitSelect"
+            >
+              <option value="">All severities</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>{LEVEL_LABEL[l]}</option>
+              ))}
+            </select>
+            <select
+              value={logLimit}
+              onChange={(e) => setLogLimit(Number(e.target.value))}
+              className="limitSelect"
+            >
+              {[50, 100, 250, 500].map((n) => (
+                <option key={n} value={n}>Last {n}</option>
+              ))}
+            </select>
+            {(searchInput || severityFilter) && (
+              <button
+                className="smallBtn"
+                onClick={() => {
+                  setSearchInput("");
+                  setSeverityFilter("");
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="tableWrapper">
             <table>
               <thead>
@@ -823,6 +891,7 @@ const topIPs = Object.entries(ipCounts)
                   <th>ID</th>
                   <th>Timestamp</th>
                   <th>Source</th>
+                  <th>Agent</th>
                   <th>Event Type</th>
                   <th>User</th>
                   <th>IP Address</th>
@@ -833,11 +902,21 @@ const topIPs = Object.entries(ipCounts)
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log) => (
+                {logs.length === 0 && (
+                  <tr>
+                    <td colSpan={11} style={{ textAlign: "center", color: "#94a3b8" }}>
+                      No logs found.
+                    </td>
+                  </tr>
+                )}
+                {logs.map((log) => (
                   <tr key={log.id}>
                     <td>{log.id}</td>
-                    <td style={{ whiteSpace: "nowrap", color: "#94a3b8", fontSize: "13px" }}>
-                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : "-"}
+                                        <td
+                      style={{ whiteSpace: "nowrap", color: "#94a3b8", fontSize: "13px" }}
+                      title={`Happened: ${formatTime(log.event_time)}\nReceived: ${formatTime(log.timestamp)}`}
+                    >
+                      {formatTime(log.event_time || log.timestamp)}
                     </td>
                     <td>
                       <span className="source sourcePill" title={log.source}>
@@ -845,13 +924,10 @@ const topIPs = Object.entries(ipCounts)
                         {cleanSourceName(log.source)}
                       </span>
                     </td>
+                    <td style={{ whiteSpace: "nowrap", fontSize: "13px" }}>{log.agent_id}</td>
                     <td>
-  <span
-    className={`eventPill event-${getSeverity(log.event_type)}`}
-  >
-    {log.event_type}
-  </span>
-</td>
+                      <span className={`eventPill event-${log.severity}`}>{log.event_type}</span>
+                    </td>
                     <td>{log.username || "-"}</td>
                     <td>{log.ip_address || "-"}</td>
                     <td className="messageCell" title={log.message}>{log.message}</td>
@@ -873,18 +949,30 @@ const topIPs = Object.entries(ipCounts)
               </tbody>
             </table>
           </div>
-
-          {copied && copied !== "key" && (
-            <div className="copyToast">Hash copied to clipboard</div>
-          )}
+          {copied && copied !== "key" && <div className="copyToast">Hash copied to clipboard</div>}
         </section>
+
         <div className="footerBar">
-  Secure Log Management System | BS Cybersecurity FYP |
-  SHA-256 • Hash Chain • Merkle Tree • Forward Secure Keys
-</div>
+          Secure Log Management System | BS Cybersecurity FYP | SHA-256 • Hash Chain •
+          Merkle Tree • Forward Secure Keys
+        </div>
       </main>
     </div>
   );
 }
 
 export default App;
+function toDate(iso) {
+  if (!iso) return null;
+  return new Date(/([zZ]|[+-]\d\d:\d\d)$/.test(iso) ? iso : `${iso}Z`);
+}
+
+function timeAgo(iso) {
+  const d = toDate(iso);
+  if (!d) return "never";
+  const s = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (s < 60) return `${s} s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+}

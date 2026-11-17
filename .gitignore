@@ -1,5 +1,8 @@
 # Python
 backend/venv/
+backend/venv*/
+.venv/
+venv*/
 backend/__pycache__/
 backend/routes/__pycache__/
 backend/services/__pycache__/
@@ -36,3 +39,17 @@ Thumbs.db
 *.ovf
 backend/key_state.json
 key_state.json
+
+# Forward-secure keys: NEVER commit these
+backend/keys/
+keys/
+*.key
+# Agent config contains its API key
+agent.conf
+# HTTPS certificates and private keys
+backend/tls/
+# Local settings and backups
+.env.local
+*.local
+*_BACKUP*
+node_modules/

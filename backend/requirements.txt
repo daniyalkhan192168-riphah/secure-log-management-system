@@ -1,0 +1,6 @@
+# SecureLog backend - tested with Python 3.11.3 on Windows 11
+fastapi==0.143.0
+uvicorn==0.54.0
+sqlalchemy==2.1.4
+pydantic==2.14.1
+cryptography==50.0.2

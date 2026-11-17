@@ -1,8 +1,10 @@
+import os
 import random
 import requests
 import time
 
 API_URL = "http://127.0.0.1:8000/logs/add"
+API_KEY = os.getenv("SECURELOG_API_KEY", "secure-log-secret-2026")  # must match backend
 
 sources = [
     "Ubuntu-HR-Server",
@@ -98,7 +100,7 @@ def main():
         payload = create_log(i)
 
         try:
-            response = requests.post(API_URL, json=payload, timeout=10)
+            response = requests.post(API_URL, json=payload, headers={"X-API-KEY": API_KEY}, timeout=10)
 
             if response.status_code == 200:
                 success += 1

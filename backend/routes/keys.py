@@ -1,43 +1,23 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
-from services.key_manager import get_current_key_state, evolve_key
+from fastapi import APIRouter, Depends
+
+from config import BATCH_SIZE
+from security import require_admin
+from services import key_manager as km
+
+router = APIRouter(prefix="/keys", tags=["Forward Secure Key Management"],
+                   dependencies=[Depends(require_admin)])
 
 
-router = APIRouter(
-    prefix="/keys",
-    tags=["Forward Secure Key Management"]
-)
-
-
-class KeyStateResponse(BaseModel):
-    status: str
-    key_version: int
-    current_key_hash: str
-    created_at: str
-    updated_at: str
-
-
-@router.get("/current", response_model=KeyStateResponse)
+@router.get("/current")
 def current_key():
-    state = get_current_key_state()
-
+    """Public key metadata only. The secret key is NEVER returned."""
+    state = km.public_state()
     return {
         "status": "success",
         "key_version": state["key_version"],
-        "current_key_hash": state["current_key_hash"],
+        "k0_fingerprint": state["k0_fingerprint"],
         "created_at": state["created_at"],
-        "updated_at": state["updated_at"]
-    }
-
-
-@router.post("/evolve", response_model=KeyStateResponse)
-def evolve_forward_secure_key():
-    state = evolve_key()
-
-    return {
-        "status": "Key evolved successfully",
-        "key_version": state["key_version"],
-        "current_key_hash": state["current_key_hash"],
-        "created_at": state["created_at"],
-        "updated_at": state["updated_at"]
+        "updated_at": state["updated_at"],
+        "evolution": "K(b+1) = SHA256('SLv1-evolve' || K(b)); old key overwritten",
+        "evolves_when": f"a batch is sealed (every {BATCH_SIZE} logs, or via POST /merkle/seal)",
     }

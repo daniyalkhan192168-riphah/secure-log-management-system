@@ -1,152 +1,69 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
-from models import Log, MerkleRoot
-from services.merkle_service import build_merkle_root
-from services.hash_service import generate_hash
-from services.key_manager import get_current_key_state
+from deps import get_db
+from models import MerkleRoot
+from routes.auth import client_ip
+from security import require_admin
+from services import ledger
+from services.key_manager import KeyStateError
 
-router = APIRouter(
-    prefix="/merkle",
-    tags=["Merkle Tree"]
-)
+# Every Merkle endpoint requires a logged-in admin.
+router = APIRouter(prefix="/merkle", tags=["Merkle Tree"], dependencies=[Depends(require_admin)])
 
 
-def get_db():
-    db = SessionLocal()
+@router.post("/seal")
+def seal_now(request: Request, db: Session = Depends(get_db),
+             claims: dict = Depends(require_admin)):
+    """Seal the open batch now. Batches also seal automatically at BATCH_SIZE logs.
+    Sealed roots are append-only; there is no endpoint to overwrite one."""
+    # Record the action first, so it is sealed inside the batch it closes.
+    ledger.record_server_event(db, "ADMIN_SEAL", claims["sub"], client_ip(request),
+                               f"Admin '{claims['sub']}' sealed the open batch manually")
     try:
-        yield db
-    finally:
-        db.close()
-
-
-@router.post("/generate/{batch_id}")
-def generate_merkle_root(batch_id: int, db: Session = Depends(get_db)):
-    """
-    Generates a Merkle Root for a specific batch of logs and seals it
-    with the current forward-secure key state.
-    """
-    logs = db.query(Log).filter(Log.batch_id == batch_id).order_by(Log.id.asc()).all()
-
-    if not logs:
-        return {
-            "status": "Not Found",
-            "message": f"No logs found for batch {batch_id}"
-        }
-
-    # We use the current_hash already stored in the database
-    hashes = [log.current_hash for log in logs]
-    root_hash = build_merkle_root(hashes)
-
-    # Get current forward-secure key metadata
-    key_state = get_current_key_state()
-    key_version = key_state["key_version"]
-    forward_secure_key_hash = key_state["current_key_hash"]
-
-    existing_root = db.query(MerkleRoot).filter(MerkleRoot.batch_id == batch_id).first()
-
-    if existing_root:
-        existing_root.root_hash = root_hash
-        existing_root.total_logs = len(logs)
-        existing_root.key_version = key_version
-        existing_root.forward_secure_key_hash = forward_secure_key_hash
-
-        db.commit()
-        db.refresh(existing_root)
-
-        return {
-            "status": "Updated",
-            "batch_id": batch_id,
-            "root_hash": root_hash,
-            "total_logs": len(logs),
-            "key_version": key_version,
-            "forward_secure_key_hash": forward_secure_key_hash
-        }
-
-    new_root = MerkleRoot(
-        batch_id=batch_id,
-        root_hash=root_hash,
-        total_logs=len(logs),
-        key_version=key_version,
-        forward_secure_key_hash=forward_secure_key_hash
-    )
-
-    db.add(new_root)
-    db.commit()
-    db.refresh(new_root)
-
+        row = ledger.seal_open_batch(db)
+    except KeyStateError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if row is None:
+        return {"status": "Nothing to seal", "message": "The open batch is empty (it may have just been sealed automatically)"}
     return {
-        "status": "Generated",
-        "batch_id": batch_id,
-        "root_hash": root_hash,
-        "total_logs": len(logs),
-        "key_version": key_version,
-        "forward_secure_key_hash": forward_secure_key_hash
+        "status": "Sealed",
+        "batch_id": row.batch_id,
+        "first_log_id": row.first_log_id,
+        "last_log_id": row.last_log_id,
+        "total_logs": row.total_logs,
+        "root_hash": row.root_hash,
+        "seal": row.seal,
+        "key_version_used": row.key_version,
+        "message": f"Key evolved to version {row.batch_id + 1}; key {row.batch_id} destroyed.",
     }
 
 
 @router.get("/roots")
 def get_merkle_roots(db: Session = Depends(get_db)):
-    roots = db.query(MerkleRoot).order_by(MerkleRoot.id.asc()).all()
-    return roots
+    rows = db.query(MerkleRoot).order_by(MerkleRoot.batch_id.asc()).all()
+    return [
+        {
+            "batch_id": r.batch_id, "first_log_id": r.first_log_id,
+            "last_log_id": r.last_log_id, "total_logs": r.total_logs,
+            "root_hash": r.root_hash, "key_version": r.key_version,
+            "previous_seal": r.previous_seal, "seal": r.seal,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/verify/{batch_id}")
 def verify_merkle_root(batch_id: int, db: Session = Depends(get_db)):
-    """
-    Verifies a Merkle Root by recalculating all log hashes in the batch
-    and rebuilding the Merkle Tree from scratch.
-    """
-    stored_root = db.query(MerkleRoot).filter(MerkleRoot.batch_id == batch_id).first()
+    return ledger.verify_batch(db, batch_id)
 
-    if not stored_root:
-        return {
-            "status": "Not Found",
-            "message": f"No Merkle Root found for batch {batch_id}"
-        }
 
-    logs = db.query(Log).filter(Log.batch_id == batch_id).order_by(Log.id.asc()).all()
+@router.get("/proof/{log_id}")
+def merkle_proof(log_id: int, db: Session = Depends(get_db)):
+    return ledger.merkle_proof(db, log_id)
 
-    if not logs:
-        return {
-            "status": "Not Found",
-            "message": f"No logs found for batch {batch_id}"
-        }
 
-    recalculated_hashes = []
-
-    for log in logs:
-        # Reconstruct the data dictionary exactly as it was during ingestion
-        log_data = {
-            "timestamp": log.timestamp.isoformat() if log.timestamp else "NOW",
-            "source": log.source,
-            "event_type": log.event_type,
-            "username": log.username,
-            "ip_address": log.ip_address,
-            "message": log.message
-        }
-
-        # Recalculate the hash for this specific log
-        recalculated_hash = generate_hash(log_data, log.previous_hash)
-        recalculated_hashes.append(recalculated_hash)
-
-    # Rebuild the Merkle Tree from the recalculated hashes
-    recalculated_root = build_merkle_root(recalculated_hashes)
-
-    if recalculated_root != stored_root.root_hash:
-        return {
-            "status": "Tampered",
-            "batch_id": batch_id,
-            "reason": "Merkle root mismatch - data has been modified",
-            "stored_root": stored_root.root_hash,
-            "recalculated_root": recalculated_root
-        }
-
-    return {
-        "status": "Valid",
-        "batch_id": batch_id,
-        "message": "Merkle Root verified successfully. All logs in this batch are untampered.",
-        "root_hash": stored_root.root_hash,
-        "total_logs_verified": len(logs)
-    }
+@router.get("/tree/{batch_id}")
+def merkle_tree(batch_id: int, db: Session = Depends(get_db)):
+    return ledger.merkle_tree(db, batch_id)

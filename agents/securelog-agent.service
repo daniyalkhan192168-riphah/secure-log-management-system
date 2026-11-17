@@ -1,0 +1,36 @@
+[Unit]
+Description=SecureLog log collector agent
+Documentation=file:///opt/securelog-agent/ubuntu_log_agent.py
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Least privilege: a dedicated user that can read the journal, not root.
+User=securelog-agent
+Group=securelog-agent
+SupplementaryGroups=systemd-journal adm
+ExecStart=/usr/bin/python3 /opt/securelog-agent/ubuntu_log_agent.py --config /etc/securelog-agent/agent.conf
+Environment=PYTHONUNBUFFERED=1
+# Creates /var/lib/securelog-agent (cursor + spool), owned by the agent user.
+StateDirectory=securelog-agent
+StateDirectoryMode=0700
+SyslogIdentifier=securelog-agent
+Restart=always
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
