@@ -82,7 +82,7 @@ sudo systemctl restart securelog-agent
 ```powershell
 python scripts\run_all_tests.py                                   # 65 automated tests + attack lab
 python scripts\attack_lab.py                                      # 14 database attacks
-python scripts\auditor_verify.py --db backend\secure_logs.db --k0 backend\keys\AUDITOR_K0.key
+python scripts\auditor_verify.py --db backend\secure_logs.db --k0 <path-to-offline>\AUDITOR_K0.key   # K0 is kept off the server
 ```
 
 Results: 65/65 tests pass; 12 of 14 database attacks detected (the 2 misses are the documented open-batch limitation); full offline audit of about 14,000 logs in 0.58 s.
@@ -90,4 +90,5 @@ Results: 65/65 tests pass; 12 of 14 database attacks detected (the 2 misses are 
 ## Security notes
 
 Secrets are never committed: `backend/.env`, `backend/keys/`, `backend/tls/`, `*.db` and `agent.conf` are in `.gitignore`. See `SECURITY_DESIGN.md` for the design and `TEST_REPORT.md` for test results.
+
 
