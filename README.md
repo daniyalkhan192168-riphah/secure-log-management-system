@@ -49,13 +49,16 @@ npm install
 "VITE_API_URL=https://127.0.0.1:8000" | Set-Content .env.local
 ```
 
-Agent (Ubuntu): copy the `agents/` folder and `backend/tls/ca.crt` to the VM, then run `sudo bash install.sh` and put the API key in `/etc/securelog-agent/agent.conf`. Add the CA to the Ubuntu trust store:
+Agent (Ubuntu): copy the `agents/` folder and `backend/tls/ca.crt` to the VM, run `sudo bash install.sh`, then copy the CA next to the agent configuration and pin it:
 
 ```bash
-sudo cp ca.crt /usr/local/share/ca-certificates/securelog-ca.crt
-sudo update-ca-certificates
+sudo cp ca.crt /etc/securelog-agent/ca.crt
+# in /etc/securelog-agent/agent.conf:
+#   api_url = https://10.0.2.2:8000/logs/add
+#   api_key = <key from manage.py add-agent>
+#   ca_file = /etc/securelog-agent/ca.crt   (the agent trusts ONLY this CA)
+sudo systemctl restart securelog-agent
 ```
-
 ## Running
 
 ```powershell
@@ -87,3 +90,4 @@ Results: 65/65 tests pass; 12 of 14 database attacks detected (the 2 misses are 
 ## Security notes
 
 Secrets are never committed: `backend/.env`, `backend/keys/`, `backend/tls/`, `*.db` and `agent.conf` are in `.gitignore`. See `SECURITY_DESIGN.md` for the design and `TEST_REPORT.md` for test results.
+
