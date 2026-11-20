@@ -22,6 +22,7 @@ const RULES = {
   ADMIN_RIGHTS_GRANTED: { mitre: "T1098", tactic: "Persistence", name: "User added to admin group" },
   LOG_WIPING_DETECTED: { mitre: "T1070.002", tactic: "Defense Evasion", name: "Log wiping" },
   PORT_SCAN_DETECTED: { mitre: "T1046", tactic: "Discovery", name: "Port scan" },
+  INTEGRITY_FAILURE: { mitre: "T1565.001", tactic: "Impact", name: "Stored log tampering" },
   INTEGRITY_ALERT: { mitre: "T1565.001", tactic: "Impact", name: "Stored log tampering" },
   ROLLBACK_DETECTED: { mitre: "T1565.001", tactic: "Impact", name: "Database rollback" },
   SEAL_MISMATCH: { mitre: "T1565.001", tactic: "Impact", name: "Seal mismatch" },
@@ -130,13 +131,13 @@ function Donut({ counts }) {
 }
 
 // Stacked bars of the latest events, grouped into equal time buckets.
-function Timeline({ logs }) {
+function Timeline({ logs, now }) {
   const data = useMemo(() => {
     const pts = logs
       .map((l) => ({ t: toDate(l.event_time || l.timestamp)?.getTime(), s: l.severity }))
       .filter((p) => p.t);
     if (!pts.length) return null;
-    const max = Math.max(Date.now(), ...pts.map((p) => p.t));
+    const max = Math.max(now, ...pts.map((p) => p.t));
     const n = 24;
     const step = Math.max(60000, (max - Math.min(...pts.map((p) => p.t)) + 1) / n);
     const min = max - n * step;
@@ -147,7 +148,7 @@ function Timeline({ logs }) {
     });
     const top = Math.max(1, ...buckets.map((b) => LEVELS.reduce((s, l) => s + b[l], 0)));
     return { buckets, top, step };
-  }, [logs]);
+  }, [logs, now]);
 
   if (!data) return <p className="empty">No events yet.</p>;
   const W = 640, H = 190, padL = 34, padB = 22, padT = 10, bw = (W - padL) / data.buckets.length;
@@ -257,6 +258,8 @@ export default function App({ user, onLogout }) {
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState("");
+  // "Now" as of the latest refresh, so rendering never reads the clock.
+  const [now, setNow] = useState(() => Date.now());
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -296,6 +299,7 @@ export default function App({ user, onLogout }) {
       setLogsTotal(l.data.total);
       setOnline(true);
       setUpdated(new Date().toLocaleTimeString());
+      setNow(Date.now());
     } catch (err) {
       if (err?.response?.status === 401) return;
       setOnline(Boolean(err?.response));
@@ -314,15 +318,15 @@ export default function App({ user, onLogout }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    const first = setTimeout(refresh, 0);
     const t = setInterval(() => !document.hidden && refresh(), POLL_MS);
-    return () => clearInterval(t);
+    return () => { clearTimeout(first); clearInterval(t); };
   }, [refresh]);
 
   useEffect(() => {
-    refreshTimeline();
+    const first = setTimeout(refreshTimeline, 0);
     const t = setInterval(() => !document.hidden && refreshTimeline(), TIMELINE_MS);
-    return () => clearInterval(t);
+    return () => { clearTimeout(first); clearInterval(t); };
   }, [refreshTimeline]);
 
   useEffect(() => {
@@ -386,7 +390,7 @@ export default function App({ user, onLogout }) {
     agents.some((g) => g.status === "online" && (a.description || "").includes(`'${g.agent_id}'`));
   const banner = alerts.find(
     (a) => (a.severity === "critical" || a.severity === "high") && !agentResolved(a) &&
-      Date.now() - (toDate(a.created_at)?.getTime() ?? 0) < 3600000
+      now - (toDate(a.created_at)?.getTime() ?? 0) < 3600000
   );
 
   const ruleRows = useMemo(() => {
@@ -399,7 +403,7 @@ export default function App({ user, onLogout }) {
     return Object.values(m).sort((x, y) => y.count - x.count);
   }, [alerts]);
 
-  const alerts24h = alerts.filter((a) => Date.now() - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
+  const alerts24h = alerts.filter((a) => now - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
   const shownAlerts = alertSev ? alerts.filter((a) => a.severity === alertSev) : alerts;
   const openPct = stats ? Math.min(100, Math.round((100 * stats.open_batch_logs) / stats.batch_size)) : 0;
   const spin = (n, Icon) => (busy === n ? <Loader2 size={15} className="spin" /> : <Icon size={15} />);
@@ -419,11 +423,11 @@ export default function App({ user, onLogout }) {
       if (p.u && p.u !== "-") users[p.u] = (users[p.u] || 0) + 1;
       types[p.e] = (types[p.e] || 0) + 1;
     });
-    out.perMin = Math.round(pts.filter((p) => p.t > Date.now() - 300000).length / 5);
+    out.perMin = Math.round(pts.filter((p) => p.t > now - 300000).length / 5);
     const top = (o, k) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, k).map(([key, count]) => ({ key, count }));
     out.users = top(users, 6); out.types = top(types, 6);
     return out;
-  }, [timelineLogs]);
+  }, [timelineLogs, now]);
 
   const tactics = useMemo(() => {
     const m = Object.fromEntries(TACTICS.map((t) => [t, 0]));
@@ -431,8 +435,8 @@ export default function App({ user, onLogout }) {
     return m;
   }, [alerts]);
 
-  const crit24 = alerts.filter((a) => a.severity === "critical" && Date.now() - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
-  const high24 = alerts.filter((a) => a.severity === "high" && Date.now() - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
+  const crit24 = alerts.filter((a) => a.severity === "critical" && now - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
+  const high24 = alerts.filter((a) => a.severity === "high" && now - (toDate(a.created_at)?.getTime() ?? 0) < 86400000).length;
   const offline = agents.length - agentsOnline;
   const posture = (() => {
     let sc = 100; const why = [];
@@ -472,7 +476,7 @@ export default function App({ user, onLogout }) {
 
       <div className="grid g-act">
         <Panel title="Event activity" sub={`Latest ${num(timelineLogs.length)} events, stacked by severity`} icon={Activity}>
-          <Timeline logs={timelineLogs} />
+          <Timeline logs={timelineLogs} now={now} />
           <div className="miniStats four">
             <div><span>Critical</span><strong className="c-crit">{num(counts.critical)}</strong></div>
             <div><span>High</span><strong className="c-high">{num(counts.high)}</strong></div>

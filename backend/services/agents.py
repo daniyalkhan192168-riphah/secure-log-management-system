@@ -144,7 +144,7 @@ def check_silent(db: Session, silence_seconds: int = None) -> list:
         db.commit()
         raise_alert(db, "AGENT_SILENT", "high",
                     f"No heartbeat from agent '{row.agent_id}' on {row.hostname or 'unknown host'} "
-                    f"since {ledger.ts_string(row.last_seen)} UTC (over {limit} s). The agent was "
+                    f"since {row.last_seen:%Y-%m-%d %H:%M:%S} UTC (over {limit} s). The agent was "
                     f"stopped, crashed, or its machine or network is down.", row.agent_id, row.last_ip)
         names.append(row.agent_id)
     return names

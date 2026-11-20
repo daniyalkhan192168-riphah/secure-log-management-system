@@ -20,7 +20,8 @@ SecureLog is a tamper-evident log management system. A lightweight agent collect
 | `backend/` | FastAPI server, ledger, crypto, detection, monitor, tests |
 | `agents/` | Ubuntu log agent, systemd service, installer, agent tests |
 | `frontend/` | React + Vite dashboard |
-| `scripts/` | Test runner, attack lab, offline auditor, log generator |
+
+The offline auditor (`auditor_verify.py`) is not part of this repository. It is kept with the auditor key K0 on the auditor's machine, away from the server.
 
 ## Requirements
 
@@ -37,7 +38,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python manage.py init            # creates .env and the initial key K0
-python manage.py add-agent       # creates an API key for the Ubuntu agent
+# python manage.py add-agent NAME  # only for an extra agent (init already created 'ubuntu-vm')
 python make_certs.py             # creates the private CA and HTTPS certificate
 ```
 
@@ -79,13 +80,28 @@ sudo systemctl restart securelog-agent
 
 ## Testing
 
+Each scenario is run by hand; the alert appears on the dashboard within 30 seconds.
+
+| Scenario | Where | Action | Expected alert |
+|---|---|---|---|
+| SSH brute force | Windows | 5 wrong passwords: `ssh hacker@<VM IP>` (twice) | BRUTE_FORCE_DETECTED (T1110) |
+| Login after brute force | Windows | Correct SSH login right after | BRUTE_FORCE_SUCCESS (T1078) |
+| Sudo guessing | VM | `sudo -k`, then `sudo ls` with 3 wrong passwords | SUDO_PASSWORD_GUESSING (T1548.003) |
+| New admin account | VM | `sudo useradd demo1`, `sudo usermod -aG sudo demo1` | ADMIN_RIGHTS_GRANTED (T1098) |
+| Log wiping | VM | `sudo touch /var/log/demo.log`, `sudo rm /var/log/demo.log` | LOG_WIPING_DETECTED (T1070.002) |
+| Port scan | Windows | Scan 5+ blocked ports on the VM (UFW on) | PORT_SCAN_DETECTED (T1046) |
+| Agent stopped | VM | `sudo systemctl stop securelog-agent` | AGENT_STOPPED |
+| Database tampering | DB Browser for SQLite | Edit a stored log and write changes | INTEGRITY_FAILURE (T1565.001), status Tampered |
+
+The same rule for the same attacker is not repeated within 10 minutes.
+
+Offline audit (run on the auditor's machine, where K0 is kept):
+
 ```powershell
-python scripts\run_all_tests.py                                   # 65 automated tests + attack lab
-python scripts\attack_lab.py                                      # 14 database attacks
-python scripts\auditor_verify.py --db backend\secure_logs.db --k0 <path-to-offline>\AUDITOR_K0.key   # K0 is kept off the server
+python "$env:USERPROFILE\Documents\SecureLog_Auditor\auditor_verify.py" --db backend\secure_logs.db --k0 "$env:USERPROFILE\Documents\SecureLog_Auditor\AUDITOR_K0.key"
 ```
 
-Results: 65/65 tests pass; 12 of 14 database attacks detected (the 2 misses are the documented open-batch limitation); full offline audit of about 14,000 logs in 0.58 s.
+Results recorded during development are in `TEST_REPORT.md`: 12 of 14 direct database attacks detected (the 2 misses are the documented open-batch limitation).
 
 ## Security notes
 

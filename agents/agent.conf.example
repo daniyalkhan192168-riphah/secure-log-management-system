@@ -1,7 +1,11 @@
 [agent]
-# Backend address as seen from this machine.
+# Backend address as seen from this machine. Use HTTPS.
 # VirtualBox NAT: 10.0.2.2   |   Host-only: 192.168.56.1   |   Same machine: 127.0.0.1
-api_url = http://10.0.2.2:8000/logs/add
+api_url = https://10.0.2.2:8000/logs/add
 
 # Key printed by `python manage.py init` or `python manage.py add-agent NAME`.
 api_key = PASTE-YOUR-AGENT-KEY-HERE
+
+# SecureLog CA (backend/tls/ca.crt copied to the VM). The agent trusts ONLY
+# this CA for the backend certificate (certificate pinning).
+ca_file = /etc/securelog-agent/ca.crt

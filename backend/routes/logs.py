@@ -62,6 +62,10 @@ def get_logs(limit: int = 100, offset: int = 0, q: Optional[str] = None,
         query = query.filter(Log.event_type.in_(types)) if types else query.filter(Log.id < 0)
 
     total = query.count()
-    rows = query.order_by(Log.id.desc()).offset(offset).limit(limit).all()
+    # A search for a log id ("Log #123" evidence links) lists that exact log first.
+    order = [Log.id.desc()]
+    if q and q.strip().isdigit():
+        order.insert(0, (Log.id == int(q.strip())).desc())
+    rows = query.order_by(*order).offset(offset).limit(limit).all()
     return {"items": [serialize_log(l) for l in rows], "total": total,
             "limit": limit, "offset": offset}

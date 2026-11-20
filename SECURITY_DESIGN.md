@@ -44,7 +44,8 @@ sequenceDiagram
 ## 4. Cryptographic construction
 
 All primitives are in `backend/services/crypto_core.py` and are re-implemented
-independently in `scripts/auditor_verify.py`.
+independently in the offline auditor `auditor_verify.py`, which is kept
+with K0 on the auditor's machine, not in this repository.
 
 ```
 entry_hash_i = SHA256("SLv1-entry" ‖ canonical(log_i) ‖ entry_hash_(i-1))

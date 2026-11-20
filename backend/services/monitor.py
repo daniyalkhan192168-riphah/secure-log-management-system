@@ -113,7 +113,8 @@ class IntegrityMonitor:
                     db.close()
             except Exception as e:  # noqa: BLE001
                 print(f"[WARN] time-based sealing failed to run: {e}")
-            self._stop.wait(self.interval)
+            # Runs before the wait, so the detector starts watching when the
+            # server starts (not one interval later, which missed early attacks).
             try:
                 db = SessionLocal()
                 try:
@@ -122,6 +123,8 @@ class IntegrityMonitor:
                     db.close()
             except Exception as e:  # noqa: BLE001
                 print(f"[WARN] attack detection failed to run: {e}")
+            self._stop.wait(self.interval)
+
     def start(self):
         if self._thread and self._thread.is_alive():
             return

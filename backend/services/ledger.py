@@ -150,10 +150,6 @@ def _seal_locked(db: Session):
     return row
 
 
-def seal_open_batch(db: Session):
- SERVER_AGENT = "securelog-server"
-
-
 def record_server_event(db: Session, event_type: str, username: str, ip: str, message: str):
     """Write the server's own security events (logins, admin actions) into the
     same tamper-evident ledger. Never lets a logging failure break the request."""
@@ -169,9 +165,6 @@ def record_server_event(db: Session, event_type: str, username: str, ip: str, me
         db.rollback()
         print(f"[WARN] could not record server event {event_type}: {e}")
         return None
-    """Seal the open batch now (even if it has fewer than BATCH_SIZE logs)."""
-    with _write_lock:
-        return _seal_locked(db)
 
 
 # ---------------------------------------------------------------- verifying
@@ -265,12 +258,6 @@ def verify_all(db: Session) -> dict:
 
 
 def verify_batch(db: Session, batch_id: int) -> dict:
- def verify_all_consistent(db: Session) -> dict:
-    """verify_all while no log is being written or sealed, so the check never
-    sees half of a seal (which could cause a false "Tampered")."""
-    with _write_lock:
-        db.expire_all()
-        return verify_all(db)
     root = db.query(MerkleRoot).filter(MerkleRoot.batch_id == batch_id).first()
     if not root:
         return {"status": "Not Found", "message": f"Batch {batch_id} is not sealed yet"}

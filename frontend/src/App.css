@@ -422,3 +422,11 @@ body { background: var(--bg); }
 .c-crit { color: #f87171; } .c-high { color: #fb923c; } .c-med { color: #facc15; } .c-low { color: #4ade80; }
 .stream { max-height: 420px; }
 @media (max-width: 1100px) { .g-act { grid-template-columns: 1fr; } }
+
+/* Small laptops / projectors (1024 px): keep the top bar inside the screen. */
+@media (max-width: 1100px) {
+  .crumb, .live small { display: none; }
+  .logo { width: auto; }
+  .topSearch { min-width: 0; }
+  .topbar { gap: 10px; }
+}

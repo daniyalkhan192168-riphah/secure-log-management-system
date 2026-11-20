@@ -363,6 +363,20 @@ def test_proof_endpoint_logic():
     db.close()
 
 
+def test_verify_single_batch():
+    """The dashboard's per-batch Verify button (GET /merkle/verify/{id})."""
+    reset()
+    db = SessionLocal()
+    add_logs(db, 23)                       # batches 1 and 2 sealed, 3 open
+    assert ledger.verify_batch(db, 1)["status"] == "Valid"
+    assert ledger.verify_batch(db, 2)["status"] == "Valid"
+    assert ledger.verify_batch(db, 3)["status"] == "Not Found"
+    ledger.simulate_tamper(db, 15)
+    assert ledger.verify_batch(db, 2)["status"] == "Tampered"
+    assert ledger.verify_batch(db, 1)["status"] == "Valid"
+    db.close()
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
