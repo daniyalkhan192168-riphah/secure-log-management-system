@@ -1,4 +1,4 @@
-/* SecureLog SIEM console theme */
+/* SecureLog console theme */
 :root {
   --bg: #070b14;
   --panel: #0e1526;
@@ -330,7 +330,7 @@ select:focus, .inline input:focus, .labForm input:focus { border-color: var(--ac
 }
 
 
-/* ================= v2: commercial SOC polish ================= */
+/* ================= v2: dashboard polish ================= */
 body { background: var(--bg); }
 .content { background: radial-gradient(1400px 500px at 70% -200px, rgba(37,99,235,.10), transparent 70%); }
 .topbar { background: linear-gradient(180deg, #0c1426, #0a1120); }

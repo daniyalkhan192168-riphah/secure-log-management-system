@@ -1,5 +1,5 @@
 """
-Attack detection rules (a small SIEM correlation engine).
+Attack detection rules (threshold-based correlation of log events).
 
 The integrity monitor calls detector.run() every 30 seconds. It looks at the
 logs that arrived since the last run (agents' logs only, never the server's

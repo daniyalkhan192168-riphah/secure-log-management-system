@@ -1,6 +1,6 @@
 # SecureLog dashboard (React + Vite)
 
-The SOC-style dashboard for SecureLog. Full setup, running and testing
+The SecureLog dashboard. Full setup, running and testing
 instructions for the whole project are in the main [README](../README.md).
 
 ## Run

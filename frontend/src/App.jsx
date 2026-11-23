@@ -14,7 +14,7 @@ const LEVELS = ["critical", "high", "medium", "low"];
 const LEVEL_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
 const LEVEL_COLOR = { critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e", info: "#64748b" };
 
-// Detection rules -> MITRE ATT&CK technique (shown like a SIEM rule table).
+// Detection rules -> MITRE ATT&CK technique (shown in the detection rules table).
 const RULES = {
   BRUTE_FORCE_DETECTED: { mitre: "T1110", tactic: "Credential Access", name: "SSH brute force" },
   BRUTE_FORCE_SUCCESS: { mitre: "T1078", tactic: "Initial Access", name: "Login after brute force" },
@@ -272,7 +272,7 @@ export default function App({ user, onLogout }) {
   const [proof, setProof] = useState(null);
   const [tamperId, setTamperId] = useState("");
   const [form, setForm] = useState({
-    source: "SOC-Analyst", event_type: "ANALYST_NOTE", username: user?.username || "admin",
+    source: "Analyst", event_type: "ANALYST_NOTE", username: user?.username || "admin",
     ip_address: "127.0.0.1", message: "Manual note added from the console",
   });
 
@@ -862,8 +862,8 @@ export default function App({ user, onLogout }) {
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="logo"><span className="logoMark"><ShieldCheck size={18} /></span><b>SecureLog</b><span>SIEM</span></div>
-        <div className="crumb"><span>SOC workspace</span><ChevronRight size={13} />{title}</div>
+        <div className="logo"><span className="logoMark"><ShieldCheck size={18} /></span><b>SecureLog</b></div>
+        <div className="crumb"><span>Log Integrity Console</span><ChevronRight size={13} />{title}</div>
         <div className="topSearch">
           <Search size={15} />
           <input placeholder="Hunt: IP, user, event type, log ID…" value={searchInput}
@@ -914,7 +914,7 @@ export default function App({ user, onLogout }) {
           <span><GitBranch size={12} />Last sealed batch #{stats?.latest_batch_id ?? "-"}</span>
           <span><Gauge size={12} />Key version {stats?.key_version ?? "-"}</span>
           <span><Zap size={12} />{num(analytics.perMin)} events/min</span>
-          <span className="right">SecureLog SIEM · BS Cyber Security FYP · Riphah International University</span>
+          <span className="right">SecureLog · Tamper-Evident Log Management · BS Cyber Security FYP · Riphah International University</span>
         </footer>
       </main>
     </div>

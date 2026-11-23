@@ -28,8 +28,8 @@ from services.merkle_service import (
 _write_lock = threading.Lock()
 
 AUDITOR_NOTE = (
-    "MACs and seals of SEALED batches can only be checked by the auditor "
-    "(scripts/auditor_verify.py with K0), because the server has already "
+    "MACs and seals of SEALED batches can only be checked by the offline auditor "
+    "(auditor_verify.py with K0, kept off the server), because the server has already "
     "destroyed those keys. That is what forward security means."
 )
 
